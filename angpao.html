@@ -50,6 +50,11 @@
       }(document, 'script', 'facebook-jssdk'));
       </script>
       <script>
+      function numberWithCommas(number) {
+        var parts = number.toString().split(".");
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return parts.join(".");
+      }
       $('body').on('click', 'img', function() {
         var luck = Math.floor((Math.random() * 100) + 1);
         if (luck > 88) {
@@ -67,7 +72,8 @@
             }
           }
         }
-        $("#current").html("<h3>恭喜獲得紅包 " + luck + " 元！！！</h3>");
+        $("#current").html("<h3>恭喜獲得紅包 " + numberWithCommas(luck) + " 元！！！</h3>");
+
       });
       </script>
   </body>
