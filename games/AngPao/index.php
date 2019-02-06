@@ -1,0 +1,75 @@
+<?php session_start() ?>
+<html>
+
+  <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+      integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+      integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+      integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous">
+    </script>
+    <style>
+    </style>
+
+  </head>
+
+  <body>
+    <div id="main" class="container">
+      <div class="row">
+        <p class="text-center" style="font-size:80px;color:red">領紅包</p>
+      </div>
+      <div class="text-center">
+        <img src="angpao.png" style="height:300px" id="angpao">
+        <div id="current" style="color:red"></div>
+        <div class="fb-share-button" data-href="https://kan090808.github.io/" data-layout="button_count"
+          data-size="small" data-mobile-iframe="true"><a target="_blank"
+            href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fdevelopers.facebook.com%2Fdocs%2Fplugins%2F&amp;src=sdkpreparse"
+            class="fb-xfbml-parse-ignore">分享</a></div>
+        <div id="fb-root"></div>
+      </div>
+
+      <script>
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s);
+        js.id = id;
+        js.src = 'https://connect.facebook.net/zh_CN/sdk.js#xfbml=1&version=v3.2';
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'facebook-jssdk'));
+      </script>
+      <script>
+      $('body').on('click', 'img', function() {
+        var luck = Math.floor((Math.random() * 100) + 1);
+        if (luck > 88) {
+          luck = luck * Math.floor((Math.random() * 10) + 1);
+          if (luck > 888) {
+            luck = luck * Math.floor((Math.random() * 100) + 1);
+            if (luck > 8888) {
+              luck = luck * Math.floor((Math.random() * 10) + 1);
+              if (luck > 88888) {
+                luck = luck * Math.floor((Math.random() * 100) + 1);
+                if (luck > 888888) {
+                  luck = luck * Math.floor((Math.random() * 1000) + 1);
+                }
+              }
+            }
+          }
+        }
+        $("#current").html("<h3>恭喜獲得紅包 " + luck + " 元！！！</h3>");
+      });
+      </script>
+  </body>
+
+</html>
