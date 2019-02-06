@@ -21,7 +21,7 @@
   </head>
 
   <body>
-    <div class="container">
+    <div id="main" class="container">
       <div class="row">
         <p class="text-center" style="font-size:80px">小小生活</p>
       </div>
