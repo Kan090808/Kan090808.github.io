@@ -56,16 +56,16 @@
         return parts.join(".");
       }
       $('body').on('click', 'img', function() {
-        var luck = Math.floor((Math.random() * 100) + 1);
-        if (luck > 88) {
+        var luck = Math.floor((Math.random() * 10) + 1);
+        if (luck > 8) {
           luck = luck * Math.floor((Math.random() * 10) + 1);
-          if (luck > 888) {
-            luck = luck * Math.floor((Math.random() * 100) + 1);
-            if (luck > 8888) {
+          if (luck > 88) {
+            luck = luck * Math.floor((Math.random() * 10) + 1);
+            if (luck > 888) {
               luck = luck * Math.floor((Math.random() * 10) + 1);
-              if (luck > 88888) {
+              if (luck > 8888) {
                 luck = luck * Math.floor((Math.random() * 100) + 1);
-                if (luck > 888888) {
+                if (luck > 88888) {
                   luck = luck * Math.floor((Math.random() * 1000) + 1);
                 }
               }
