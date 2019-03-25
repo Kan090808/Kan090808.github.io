@@ -1,30 +1,68 @@
+body {
+  margin: 0;
+}
+
 .sidenav {
-  height: 100%;
-  width: 200px;
-  position: fixed;
   top: 0;
-  left: 0;
+  padding: 0;
+  height: 100%;
+  /*full height: remove this if you want auto height */
+  width: 300px;
+  /*width of sidebar*/
+  position: fixed;
+  /*fixed sidebar: stay on place on scroll*/
   background-color: #1E90FF;
-  overflow-x: hidden;
-  padding-top: 20px;
+  overflow: auto;
 }
 
 .sidenav a {
-  padding: 6px 8px 6px 16px;
+  padding: 20px;
   text-decoration: none;
-  font-size: 25px;
+  font-size: 40px;
   color: black;
   display: block;
 }
 
-.sidenav a:hover {
-  color: #f1f1f1;
-  background-color: gray;
+.sidenav a.active {
+  background-color: #0000CD;
+  color: white;
+}
+
+.sidenav a:hover:not(.active) {
+  font-weight: bold;
+  color: #0000CD;
+  background-color: white;
 }
 
 .main {
-  margin-left: 200px;
+  margin-left: 350px;
   /*same as width of the sidenav */
   font-size: 30px;
   padding: 0px 10px;
+}
+
+@media screen and (max-width: 700px) {
+  .sidenav {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+
+  .sidenav a {
+    float: left;
+    font-size: 25px;
+  }
+
+  div.main {
+    margin-left: 0;
+  }
+}
+
+@media screen and (max-width: 400px) {
+  .sidenav a {
+    text-align: center;
+    float: none;
+    font-size: 20px;
+    padding: 5px;
+  }
 }
