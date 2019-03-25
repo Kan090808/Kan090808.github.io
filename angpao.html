@@ -31,15 +31,20 @@
       </div>
       <div class="text-center">
         <img src="angpao.png" style="height:300px" id="angpao">
+        <div id="time"></div>
         <div id="current" style="color:red"></div>
+        <div id="warning" style="color:red"></div>
         <div class="fb-share-button" data-href="https://kan090808.github.io/angpao.html" data-layout="button_count"
           data-size="small" data-mobile-iframe="false"><a target="_blank"
             href="https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fdevelopers.facebook.com%2Fdocs%2Fplugins%2F&amp;src=sdkpreparse"
             class="fb-xfbml-parse-ignore">分享</a></div>
+
         <div id="fb-root"></div>
       </div>
 
       <script>
+      var able = true;
+      //facebook share button
       (function(d, s, id) {
         var js, fjs = d.getElementsByTagName(s)[0];
         if (d.getElementById(id)) return;
@@ -49,13 +54,34 @@
         fjs.parentNode.insertBefore(js, fjs);
       }(document, 'script', 'facebook-jssdk'));
       </script>
-      <script>
+      <script>//countdown
+        function startTimer(duration, display) {
+            var timer = duration, minutes, seconds;
+            setInterval(function () {
+                minutes = parseInt(timer / 60, 10)
+                seconds = parseInt(timer % 60, 10);
+
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+
+                display.textContent = minutes + ":" + seconds;
+
+                if (--timer < 0) {
+                    able=true;
+                    stoptimer();
+                    $("#warning").html("有紅包拿了~");
+                }
+            }, 1000);
+        }
+      </script>
+      <script>//amount with comma
       function numberWithCommas(number) {
         var parts = number.toString().split(".");
         parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
         return parts.join(".");
       }
-      $('body').on('click', 'img', function() {
+      $('body').on('click', 'img', function() {//winrate
+      if(able == true){
         var luck = Math.floor((Math.random() * 10) + 1);
         if (luck > 8) {
           luck = luck * Math.floor((Math.random() * 10) + 1);
@@ -72,9 +98,14 @@
             }
           }
         }
+        able = false;
         $("#current").html("<h3>恭喜獲得紅包 " + numberWithCommas(luck) + " 元！！！</h3>");
-
-      });
+        var Minutes = 60 * 1,
+        display = document.querySelector('#time');
+        startTimer(Minutes, display);
+      }else{
+        $("#warning").html("<h3>請稍後嘗試</h3>");
+      }});
       </script>
   </body>
 
