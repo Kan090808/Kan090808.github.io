@@ -4,6 +4,14 @@ body {
   font-size: 22px;
 }
 
+#main {
+  font-size: 200px;
+  margin-left: 350px !important;
+  /*same as width of the sidenav */
+  font-size: 20px;
+  padding: 0px 10px;
+}
+
 .sidenav {
   top: 0;
   padding: 0;
@@ -28,7 +36,7 @@ body {
 .sidenav a.active {
   background-color: #0000CD;
   color: white;
-  font-size: 40px;
+  font-size: 30px;
 }
 
 .sidenav a:hover:not(.active) {
@@ -37,13 +45,8 @@ body {
   background-color: white;
 }
 
-.main {
-  margin-left: 350px;
-  /*same as width of the sidenav */
-  font-size: 30px;
-  padding: 0px 10px;
-}
 
+/* 
 @media screen and (max-width: 700px) {
   .sidenav {
     width: 100%;
@@ -55,7 +58,7 @@ body {
     float: left;
   }
 
-  div.main {
+  div#main {
     margin-left: 0;
   }
 }
@@ -66,4 +69,4 @@ body {
     float: none;
     padding: 5px;
   }
-}
+} */
