@@ -1,7 +1,5 @@
 body {
   margin: 0;
-  font-family: 'cwTeXYen', sans-serif;
-  font-size: 22px;
 }
 
 .sidenav {
@@ -13,14 +11,14 @@ body {
   /*width of sidebar*/
   position: fixed;
   /*fixed sidebar: stay on place on scroll*/
-  background-color: #00FFFF;
+  background-color: #1E90FF;
   overflow: auto;
 }
 
 .sidenav a {
   padding: 20px;
   text-decoration: none;
-  font-size: 30px;
+  font-size: 40px;
   color: black;
   display: block;
 }
@@ -28,11 +26,10 @@ body {
 .sidenav a.active {
   background-color: #0000CD;
   color: white;
-  font-size: 40px;
 }
 
 .sidenav a:hover:not(.active) {
-  font-size: 40px;
+  font-weight: bold;
   color: #0000CD;
   background-color: white;
 }
@@ -53,6 +50,7 @@ body {
 
   .sidenav a {
     float: left;
+    font-size: 25px;
   }
 
   div.main {
@@ -64,6 +62,7 @@ body {
   .sidenav a {
     text-align: center;
     float: none;
+    font-size: 20px;
     padding: 5px;
   }
 }
