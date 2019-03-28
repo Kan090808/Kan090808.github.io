@@ -1,44 +1,38 @@
 body {
   margin: 0;
+  font-family: 'cwTeXYen', sans-serif;
 }
 
 .sidenav {
   top: 0;
-  padding: 0;
-  height: 100%;
-  /*full height: remove this if you want auto height */
   width: 300px;
-  /*width of sidebar*/
+  height: 100%;
+  background-color: #00FFFF;
   position: fixed;
-  /*fixed sidebar: stay on place on scroll*/
-  background-color: #1E90FF;
   overflow: auto;
 }
 
 .sidenav a {
-  padding: 20px;
-  text-decoration: none;
-  font-size: 40px;
-  color: black;
   display: block;
-}
-
-.sidenav a.active {
-  background-color: #0000CD;
-  color: white;
+  padding: 16px;
+  font-size: 30px;
+  text-decoration: none;
 }
 
 .sidenav a:hover:not(.active) {
-  font-weight: bold;
-  color: #0000CD;
   background-color: white;
+  font-size: 40px;
 }
 
-.main {
-  margin-left: 350px;
-  /*same as width of the sidenav */
-  font-size: 30px;
-  padding: 0px 10px;
+.sidenav .active {
+  background-color: #1E90FF;
+  color: white;
+  font-size: 40px;
+}
+
+#main {
+  margin-left: 300px;
+  padding: 50px;
 }
 
 @media screen and (max-width: 700px) {
@@ -46,23 +40,21 @@ body {
     width: 100%;
     height: auto;
     position: relative;
+
   }
 
   .sidenav a {
     float: left;
-    font-size: 25px;
   }
 
-  div.main {
-    margin-left: 0;
+  #main {
+    margin: 0;
   }
 }
 
-@media screen and (max-width: 300px) {
+@media screen and (max-width: 400px) {
   .sidenav a {
     text-align: center;
     float: none;
-    font-size: 20px;
-    padding: 5px;
   }
 }

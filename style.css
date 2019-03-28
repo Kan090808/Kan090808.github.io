@@ -1,73 +1,66 @@
 body {
   margin: 0;
   font-family: 'cwTeXYen', sans-serif;
-  font-size: 22px;
-}
-
-#main {
-  font-size: 200px;
-  margin-left: 350px !important;
-  /*same as width of the sidenav */
   font-size: 30px;
-  padding: 0px 10px;
 }
 
 .sidenav {
   top: 0;
-  padding: 0;
-  height: 100%;
-  /*full height: remove this if you want auto height */
   width: 300px;
-  /*width of sidebar*/
-  position: fixed;
-  /*fixed sidebar: stay on place on scroll*/
+  height: 100%;
   background-color: #00FFFF;
+  position: fixed;
   overflow: auto;
 }
 
 .sidenav a {
-  padding: 20px;
-  text-decoration: none;
-  font-size: 30px;
-  color: black;
   display: block;
+  padding: 16px;
+  font-size: 30px;
+  text-decoration: none;
 }
 
-.sidenav a.active {
-  background-color: #0000CD;
+.sidenav a:hover:not(.active) {
+  background-color: white;
+  font-size: 40px;
+}
+
+.sidenav .active {
+  background-color: #1E90FF;
   color: white;
   font-size: 40px;
 }
 
-.sidenav a:hover:not(.active) {
-  font-size: 40px;
-  color: #0000CD;
-  background-color: white;
+#main {
+  margin-left: 300px;
+  padding: 50px;
 }
 
-
+.title {
+  font-size: 60px;
+  font-weight: normal;
+}
 
 @media screen and (max-width: 700px) {
   .sidenav {
     width: 100%;
     height: auto;
     position: relative;
+
   }
 
   .sidenav a {
     float: left;
-    padding: 10px;
   }
 
-  div#main {
-    margin-left: 0;
+  #main {
+    margin: 0;
   }
 }
 
-@media screen and (max-width: 300px) {
+@media screen and (max-width: 400px) {
   .sidenav a {
     text-align: center;
     float: none;
-    padding: 5px;
   }
 }
