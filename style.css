@@ -42,6 +42,7 @@ h5 {
 #main {
   margin-left: 300px;
   padding: 0px 50px;
+  word-wrap: break-word;
 }
 
 .title {
@@ -60,6 +61,7 @@ hr {
   border-width: 5px;
   border-style: solid;
   border-radius: 25px;
+  width: 100%;
 }
 
 .skill p {
@@ -85,11 +87,13 @@ hr {
   }
 
   #main {
-    margin: 0;
+    margin-left: 0;
+    padding: 10px;
   }
 }
 
 @media screen and (max-width: 400px) {
+
   .sidenav a {
     text-align: center;
     float: none;
