@@ -29,23 +29,21 @@
       </div>
       <ul>
         <li v-for='todo in todoList' :key='todo.id'>
-          <span :class="{completed: todo.completed}">{{todo.title}}</span>
+          <span v-if="!todo.isEditing" :class="{completed: todo.completed}" @dblclick="startEdit(todo)">{{todo.title}}</span>
+          <input v-if="todo.isEditing" v-focus="true" type="text" placeholder="編輯 todo" v-model="todo.title" @keyup.enter="editTodo(todo)" @keyup.esc="cancelEdit(todo)">
+          <!-- <input v-if="todo.isEditing" type="button" value="取消編輯" @click="cancelEdit(todo)"> -->
           <input v-if="!todo.completed" type="button" value="標記完成" @click="markCompleted(todo)">
           <input v-else="!todo.completed" type="button" value="標記未完成" @click="markUncompleted(todo)">
           <input type="button" value="刪除" @click="deleteTodo(todo)">
-          <input type="text" placeholder="編輯 todo">
+          <!-- <input v-if="!todo.isEditing" type="button" value="編輯" @click="startEdit(todo)"> -->
+          <input v-if="todo.lastChange && !todo.isEditing" type="button" value="撤銷修改" @click="undoTodo(todo)">
         </li>
       </ul>
       <!-- end todo list -->
       <div>
-        <span>剩余 3 项未完成 ---</span>
-        <span>筛选：
-          <input type="button" class="selected" value="全部">
-          <input type="button" value="进行中">
-          <input type="button" value="已完成">
-          <input type="button" value="清除已完成">
-          <input type="button" value="清除全部">
-        </span>
+        <span>剩下{{unCompleteCount}}個任務未完成</span>
+        <input type="button" value="全部標記完成" @click="markAllAsCompleted">
+        <input type="button" value="全部標記未完成" @click="markAllAsUnCompleted">
       </div>
     </div>
     <script src="https://cdn.bootcss.com/vue/2.5.16/vue.js"></script>
@@ -56,13 +54,14 @@
         data: function(){
           return {
             todoList: [],
-            newTodo: ''
+            newTodo: '',
+            beforeEdit: ''
           } 
         },
         methods:{
           addTodo: function(){
             if(this.newTodo.length){
-              this.todoList.push({id: id++, title: this.newTodo, completed: false});
+              this.todoList.push({id: id++, title: this.newTodo, completed: false, lastChange: null, isEditing: false});
               this.newTodo = '';
             }else{
               alert("請輸入todo內容");
@@ -76,7 +75,50 @@
             todo.completed = false;
           },
           deleteTodo: function(todo){
-            this.todoList.splice(this.todoList.indexOf(todo), 1);
+            if(confirm('確認刪除？')){
+              this.todoList.splice(this.todoList.indexOf(todo), 1);
+            }
+          },
+          editTodo: function(todo){
+            todo.lastChange = {title: this.beforeEdit, lastChange: todo.lastChange};
+            todo.isEditing = false;
+            console.log(todo.lastChange);
+          },
+          undoTodo: function(todo){
+            last = todo.lastChange;
+            todo.title = last.title;
+            todo.lastChange = last.lastChange;
+            console.log(todo);
+          },
+          startEdit: function(todo){
+            this.beforeEdit = todo.title;
+            todo.isEditing = true;
+          },
+          cancelEdit: function(todo){
+            todo.isEditing = false;
+            todo.title = this.beforeEdit;
+          },
+          markAllAsCompleted: function(){
+            this.todoList.map(function(todo){
+              todo.completed = true;
+            })
+          },
+          markAllAsUnCompleted: function(){
+            this.todoList.map(function(todo){
+              todo.completed = false;
+            })
+          }
+        },
+        directives:{
+          focus:{
+            inserted:function(el){
+              el.focus();
+            }
+          }
+        },
+        computed:{
+          unCompleteCount:function(){
+            return this.todoList.filter(todo => !todo.completed).length;
           }
         }
       
