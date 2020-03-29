@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Vue Todo</title>
+    <style>
+      .completed {
+        text-decoration: line-through;
+      }
+
+      .selected {
+        color: red;
+      }
+
+      .empty {
+        border-color: red;
+      }
+
+      .hide {
+        visibility: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="todo-app">
+      <div>
+        <input type="button" value="全部標記完成">
+        <input type="text" v-bind:class="{empty:!newTodo.length}" placeholder="添加todo" v-model="newTodo" @keyup.enter="addTodo">
+      </div>
+      <ul>
+        <li v-for='todo in todoList' :key='todo.id'>
+          <span :class="{completed: todo.completed}">{{todo.title}}</span>
+          <input v-if="!todo.completed" type="button" value="標記完成" @click="markCompleted(todo)">
+          <input v-else="!todo.completed" type="button" value="標記未完成" @click="markUncompleted(todo)">
+          <input type="button" value="刪除" @click="deleteTodo(todo)">
+          <input type="text" placeholder="編輯 todo">
+        </li>
+      </ul>
+      <!-- end todo list -->
+      <div>
+        <span>剩余 3 项未完成 ---</span>
+        <span>筛选：
+          <input type="button" class="selected" value="全部">
+          <input type="button" value="进行中">
+          <input type="button" value="已完成">
+          <input type="button" value="清除已完成">
+          <input type="button" value="清除全部">
+        </span>
+      </div>
+    </div>
+    <script src="https://cdn.bootcss.com/vue/2.5.16/vue.js"></script>
+    <script>
+      let id=0;
+      var app = new Vue({
+        el: '#todo-app',
+        data: function(){
+          return {
+            todoList: [],
+            newTodo: ''
+          } 
+        },
+        methods:{
+          addTodo: function(){
+            if(this.newTodo.length){
+              this.todoList.push({id: id++, title: this.newTodo, completed: false});
+              this.newTodo = '';
+            }else{
+              alert("請輸入todo內容");
+            }
+            
+          },
+          markCompleted: function(todo) {
+            todo.completed = true;
+          },
+          markUncompleted: function(todo){
+            todo.completed = false;
+          },
+          deleteTodo: function(todo){
+            this.todoList.splice(this.todoList.indexOf(todo), 1);
+          }
+        }
+      
+      })
+    </script>
+  </body>
+</html>
