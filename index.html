@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>加密工具</title>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body>
+	<h1>加密工具</h1>
+	<form>
+		<label for="plaintext">輸入原文：</label>
+		<input type="text" id="plaintext" name="plaintext"><br><br>
+		<label for="password">輸入密碼：</label>
+		<input type="password" id="password" name="password"><br><br>
+		<input type="button" value="加密" onclick="encrypt()"><br><br>
+		<label for="ciphertext">加密結果：</label>
+		<textarea id="ciphertext" name="ciphertext"></textarea>
+	</form>
+	<script>
+		function encrypt() {
+			var plaintext = document.getElementById("plaintext").value;
+			var password = document.getElementById("password").value;
+			var ciphertext = CryptoJS.AES.encrypt(plaintext, password).toString();
+			document.getElementById("ciphertext").value = ciphertext;
+		}
+	</script>
+</body>
+</html>
