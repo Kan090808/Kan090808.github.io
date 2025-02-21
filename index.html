@@ -29,6 +29,18 @@
 			border-radius: 4px;
 		}
 
+		#auth-container {
+            text-align: center;
+            margin: 20px;
+        }
+        #user-info {
+            margin: 10px;
+            display: none;
+        }
+        #chat-container {
+            display: none; /* Hide chat until logged in */
+        }
+
 		#user-info {
 			padding: 10px;
 			background-color: #f8f9fa;
@@ -51,7 +63,15 @@
     </style>
 </head>
 <body>
-    <h1>聊天室</h1>
+    <div id="auth-container">
+        <button id="login-btn" onclick="signInWithGoogle()">Google登入</button>
+        <div id="user-info">
+            <img id="user-photo" style="width: 40px; border-radius: 50%;">
+            <span id="user-name"></span>
+            <button onclick="signOut()">登出</button>
+        </div>
+    </div>
+	
     <div id="chat-container">
         <div id="messages"></div>
         <div id="input-container">
