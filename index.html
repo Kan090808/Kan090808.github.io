@@ -5,6 +5,7 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 	<script src="env-config.js"></script>
     <script src="config.js"></script>
     <style>
@@ -20,10 +21,33 @@
             padding: 10px;
         }
         .message {
-            margin: 5px 0;
-            padding: 5px;
-            background-color: #f0f0f0;
-        }
+			display: flex;
+			align-items: center;
+			margin: 10px 0;
+			padding: 8px;
+			background-color: #f0f0f0;
+			border-radius: 4px;
+		}
+
+		#user-info {
+			padding: 10px;
+			background-color: #f8f9fa;
+			border-radius: 4px;
+			margin-bottom: 20px;
+		}
+
+		#login-btn {
+			padding: 10px 20px;
+			background-color: #4285f4;
+			color: white;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+
+		#login-btn:hover {
+			background-color: #357abd;
+		}
     </style>
 </head>
 <body>
@@ -38,15 +62,63 @@
 
     <script>
         firebase.initializeApp(getFirebaseConfig());
-		
+		const auth = firebase.auth();
         const database = firebase.database();
         const messagesRef = database.ref('messages');
 
-        // Listen for new messages
-        messagesRef.on('child_added', (snapshot) => {
-            const message = snapshot.val();
-            displayMessage(message);
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        // Sign in function
+        function signInWithGoogle() {
+            auth.signInWithPopup(provider)
+                .catch((error) => {
+                    console.error("Error signing in: ", error);
+                });
+        }
+
+        // Sign out function
+        function signOut() {
+            auth.signOut().catch((error) => {
+                console.error("Error signing out: ", error);
+            });
+        }
+
+        // Auth state observer
+        auth.onAuthStateChanged((user) => {
+            const authContainer = document.getElementById('auth-container');
+            const loginBtn = document.getElementById('login-btn');
+            const userInfo = document.getElementById('user-info');
+            const chatContainer = document.getElementById('chat-container');
+            
+            if (user) {
+                // User is signed in
+                loginBtn.style.display = 'none';
+                userInfo.style.display = 'block';
+                chatContainer.style.display = 'block';
+                
+                // Update user info
+                document.getElementById('user-photo').src = user.photoURL;
+                document.getElementById('user-name').textContent = user.displayName;
+                
+                // Start listening for messages
+                setupMessageListener();
+            } else {
+                // User is signed out
+                loginBtn.style.display = 'block';
+                userInfo.style.display = 'none';
+                chatContainer.style.display = 'none';
+                
+                // Stop listening for messages
+                messagesRef.off();
+            }
         });
+
+        function setupMessageListener() {
+            messagesRef.on('child_added', (snapshot) => {
+                const message = snapshot.val();
+                displayMessage(message);
+            });
+        }
 
         function displayMessage(message) {
             const messagesDiv = document.getElementById('messages');
