@@ -1,0 +1,7 @@
+window.FIREBASE_API_KEY='AIzaSyCJm445lA_XYj924YQUzL6qdN0gtYtBKf4'
+window.FIREBASE_AUTH_DOMAIN='chat-849ed.firebaseapp.com'
+window.FIREBASE_DATABASE_URL='https://chat-849ed-default-rtdb.asia-southeast1.firebasedatabase.app'
+window.FIREBASE_PROJECT_ID='chat-849ed'
+window.FIREBASE_STORAGE_BUCKET='chat-849ed.firebasestorage.app'
+window.FIREBASE_MESSAGING_SENDER_ID='508808717700'
+window.FIREBASE_APP_ID='1:508808717700:web:10eb53d6a84f0c8398a9d1'
