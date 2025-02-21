@@ -1,0 +1,72 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Create env-config
+        run: |
+          echo "window.FIREBASE_API_KEY='${{ secrets.FIREBASE_API_KEY }}'" > env-config.js
+          echo "window.FIREBASE_AUTH_DOMAIN='${{ secrets.FIREBASE_AUTH_DOMAIN }}'" >> env-config.js
+          echo "window.FIREBASE_DATABASE_URL='${{ secrets.FIREBASE_DATABASE_URL }}'" >> env-config.js
+          echo "window.FIREBASE_PROJECT_ID='${{ secrets.FIREBASE_PROJECT_ID }}'" >> env-config.js
+          echo "window.FIREBASE_STORAGE_BUCKET='${{ secrets.FIREBASE_STORAGE_BUCKET }}'" >> env-config.js
+          echo "window.FIREBASE_MESSAGING_SENDER_ID='${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}'" >> env-config.js
+          echo "window.FIREBASE_APP_ID='${{ secrets.FIREBASE_APP_ID }}'" >> env-config.js
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+
+# # Simple workflow for deploying static content to GitHub Pages
+# name: Deploy static content to Pages
+
+# on:
+#   # Runs on pushes targeting the default branch
+#   push:
+#     branches: ["main"]
+
+#   # Allows you to run this workflow manually from the Actions tab
+#   workflow_dispatch:
+
+# # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# permissions:
+#   contents: read
+#   pages: write
+#   id-token: write
+
+# # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+# concurrency:
+#   group: "pages"
+#   cancel-in-progress: false
+
+# jobs:
+#   # Single deploy job since we're just deploying
+#   deploy:
+#     environment:
+#       name: github-pages
+#       url: ${{ steps.deployment.outputs.page_url }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+#       - name: Setup Pages
+#         uses: actions/configure-pages@v5
+#       - name: Upload artifact
+#         uses: actions/upload-pages-artifact@v3
+#         with:
+#           # Upload entire repository
+#           path: '.'
+#       - name: Deploy to GitHub Pages
+#         id: deployment
+#         uses: actions/deploy-pages@v4
