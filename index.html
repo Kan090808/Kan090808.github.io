@@ -1,175 +1,332 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>聊天室</title>
+    <title>Encrypted Note</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-	<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-	<script src="env-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <!-- CryptoJS for AES encryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="config.js"></script>
-    <style>
-        #chat-container {
-            width: 80%;
-            margin: 20px auto;
-        }
-        #messages {
-            height: 300px;
-            border: 1px solid #ccc;
-            overflow-y: auto;
-            margin-bottom: 20px;
-            padding: 10px;
-        }
-        .message {
-			display: flex;
-			align-items: center;
-			margin: 10px 0;
-			padding: 8px;
-			background-color: #f0f0f0;
-			border-radius: 4px;
-		}
-
-		#auth-container {
-            text-align: center;
-            margin: 20px;
-        }
-        #user-info {
-            margin: 10px;
-            display: none;
-        }
-        #chat-container {
-            display: none; /* Hide chat until logged in */
-        }
-
-		#user-info {
-			padding: 10px;
-			background-color: #f8f9fa;
-			border-radius: 4px;
-			margin-bottom: 20px;
-		}
-
-		#login-btn {
-			padding: 10px 20px;
-			background-color: #4285f4;
-			color: white;
-			border: none;
-			border-radius: 4px;
-			cursor: pointer;
-		}
-
-		#login-btn:hover {
-			background-color: #357abd;
-		}
-    </style>
+    <script src="env-config.js"></script>
+    <!-- <script src="local-config.js"></script> -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Pre-login container -->
+    <div id="pre-login-container">
+        <h1 id="app-title">Encrypted Note</h1>
+        <button id="login-btn" onclick="signInWithGoogle()">Login with Google</button>
+    </div>
+
+    <!-- Post-login container -->
     <div id="auth-container">
-        <button id="login-btn" onclick="signInWithGoogle()">Google登入</button>
-        <div id="user-info">
-            <img id="user-photo" style="width: 40px; border-radius: 50%;">
+        <div id="user-info" onclick="toggleAccountMenu()">
+            <img id="user-photo">
             <span id="user-name"></span>
-            <button onclick="signOut()">登出</button>
+            <div id="account-menu">
+                <button onclick="editPassword()">Set/Edit Password</button>
+                <button onclick="signOut()">Logout</button>
+            </div>
         </div>
     </div>
-	
-    <div id="chat-container">
-        <div id="messages"></div>
-        <div id="input-container">
-            <input type="text" id="message-input" placeholder="輸入訊息...">
-            <button onclick="sendMessage()">發送</button>
+    
+    <div id="note-container">
+        <button class="create-button" onclick="openCreateDialog()">Add New Note</button>
+        <div id="note-list" class="note-list"></div>
+    </div>
+
+    <!-- Password Modal -->
+    <div id="password-dialog" class="modal">
+        <div class="modal-content">
+            <h2>Set Password</h2>
+            <input type="password" id="password-input" placeholder="Enter your password">
+            <div class="modal-buttons">
+                <button class="save-btn" onclick="savePassword()">Save</button>
+                <button class="cancel-btn" onclick="closePasswordDialog()">Cancel</button>
+            </div>
         </div>
     </div>
+
+    <!-- Create Note Dialog -->
+    <div id="create-dialog" class="modal">
+        <div class="modal-content">
+            <h2>New Note</h2>
+            <textarea id="note-content" placeholder="Write your note here (max 500 words)..." oninput="adjustTextareaHeight(this)"></textarea>
+            <div class="modal-buttons">
+                <button class="save-btn" onclick="createNote()">Save</button>
+                <button class="cancel-btn" onclick="closeCreateDialog()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Note Dialog -->
+    <div id="view-dialog" class="modal">
+        <div class="modal-content">
+            <h2>Note</h2>
+            <textarea id="view-note-content" readonly></textarea>
+            <div class="modal-buttons">
+                <button class="delete-btn" onclick="deleteNote()">Delete</button>
+                <button class="cancel-btn" onclick="closeViewDialog()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast" class="toast"></div>
 
     <script>
         firebase.initializeApp(getFirebaseConfig());
-		const auth = firebase.auth();
+        const auth = firebase.auth();
         const database = firebase.database();
-        const messagesRef = database.ref('messages');
-
         const provider = new firebase.auth.GoogleAuthProvider();
+        let userPassword = null;
+        let currentNoteId = null;
+        const MAX_NOTES = 10;
+        const MAX_WORDS = 500;
 
-        // Sign in function
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.className = `toast ${type}`;
+            }, 3000);
+        }
+
         function signInWithGoogle() {
             auth.signInWithPopup(provider)
+                .then(() => {
+                    showToast("Login successful");
+                    // openPasswordDialog();
+                })
                 .catch((error) => {
-                    console.error("Error signing in: ", error);
+                    console.error("Error signing in:", error);
+                    showToast("Login failed: " + error.message, 'error');
                 });
         }
 
-        // Sign out function
         function signOut() {
-            auth.signOut().catch((error) => {
-                console.error("Error signing out: ", error);
-            });
+            auth.signOut()
+                .then(() => {
+                    userPassword = null;
+                    showToast("Logout successful");
+                })
+                .catch((error) => {
+                    console.error("Error signing out:", error);
+                    showToast("Logout failed: " + error.message, 'error');
+                });
         }
 
-        // Auth state observer
-        auth.onAuthStateChanged((user) => {
-            const authContainer = document.getElementById('auth-container');
-            const loginBtn = document.getElementById('login-btn');
+        function toggleAccountMenu() {
+            const accountMenu = document.getElementById('account-menu');
+            accountMenu.style.display = accountMenu.style.display === 'block' ? 'none' : 'block';
+        }
+
+        document.addEventListener('click', (event) => {
             const userInfo = document.getElementById('user-info');
-            const chatContainer = document.getElementById('chat-container');
+            const accountMenu = document.getElementById('account-menu');
+            if (!userInfo.contains(event.target) && accountMenu.style.display === 'block') {
+                accountMenu.style.display = 'none';
+            }
+        });
+
+        auth.onAuthStateChanged((user) => {
+            const preLoginContainer = document.getElementById('pre-login-container');
+            const authContainer = document.getElementById('auth-container');
+            const noteContainer = document.getElementById('note-container');
             
             if (user) {
-                // User is signed in
-                loginBtn.style.display = 'none';
-                userInfo.style.display = 'block';
-                chatContainer.style.display = 'block';
+                preLoginContainer.style.display = 'none';
+                authContainer.style.display = 'block';
+                noteContainer.style.display = 'block';
                 
-                // Update user info
                 document.getElementById('user-photo').src = user.photoURL;
                 document.getElementById('user-name').textContent = user.displayName;
+
+                if (!userPassword) {
+                    openPasswordDialog();
+                }
                 
-                // Start listening for messages
-                setupMessageListener();
+                loadNotes();
             } else {
-                // User is signed out
-                loginBtn.style.display = 'block';
-                userInfo.style.display = 'none';
-                chatContainer.style.display = 'none';
-                
-                // Stop listening for messages
-                messagesRef.off();
+                preLoginContainer.style.display = 'flex';
+                authContainer.style.display = 'none';
+                noteContainer.style.display = 'none';
+                document.getElementById('account-menu').style.display = 'none';
             }
         });
 
-        function setupMessageListener() {
-            messagesRef.on('child_added', (snapshot) => {
-                const message = snapshot.val();
-                displayMessage(message);
+        function openPasswordDialog() {
+            document.getElementById('password-dialog').style.display = 'flex';
+            document.getElementById('password-input').value = userPassword || '';
+            document.getElementById('password-input').focus();
+        }
+
+        function closePasswordDialog() {
+            document.getElementById('password-dialog').style.display = 'none';
+        }
+
+        function savePassword() {
+            const password = document.getElementById('password-input').value.trim();
+            if (password) {
+                userPassword = password;
+                showToast("Password set successfully");
+                closePasswordDialog();
+                loadNotes();
+            } else {
+                showToast("Please enter a password", 'error');
+            }
+        }
+
+        function editPassword() {
+            openPasswordDialog();
+        }
+
+        function encryptNote(content) {
+            if (!userPassword) {
+                throw new Error("No password set");
+            }
+            return CryptoJS.AES.encrypt(content, userPassword).toString();
+        }
+
+        function decryptNote(encryptedContent) {
+            if (!userPassword) return "[Encrypted - Set Password to View]";
+            try {
+                const bytes = CryptoJS.AES.decrypt(encryptedContent, userPassword);
+                return bytes.toString(CryptoJS.enc.Utf8) || "[Decryption Failed - Wrong Password?]";
+            } catch (e) {
+                return "[Decryption Failed - Wrong Password?]";
+            }
+        }
+
+        function countWords(text) {
+            return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+        }
+
+        function loadNotes() {
+            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
+            notesRef.on('value', (snapshot) => {
+                const noteList = document.getElementById('note-list');
+                noteList.innerHTML = '';
+                
+                snapshot.forEach((childSnapshot) => {
+                    const note = childSnapshot.val();
+                    const noteId = childSnapshot.key;
+                    const noteElement = document.createElement('div');
+                    noteElement.className = 'note-item';
+                    noteElement.textContent = decryptNote(note.content);
+                    noteElement.onclick = () => openViewDialog(noteId, note.content);
+                    noteList.appendChild(noteElement);
+                });
+            }, (error) => {
+                console.error("Error loading notes:", error);
+                showToast("Failed to load notes: " + error.message, 'error');
             });
         }
 
-        function displayMessage(message) {
-            const messagesDiv = document.getElementById('messages');
-            const messageElement = document.createElement('div');
-            messageElement.className = 'message';
-            messageElement.textContent = `${message.timestamp}: ${message.text}`;
-            messagesDiv.appendChild(messageElement);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        function openCreateDialog() {
+            if (!userPassword) {
+                showToast("Please set up a password first", 'error');
+                return;
+            }
+            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
+            notesRef.once('value', (snapshot) => {
+                if (snapshot.numChildren() >= MAX_NOTES) {
+                    showToast(`Cannot create more than ${MAX_NOTES} notes`, 'error');
+                } else {
+                    const modal = document.getElementById('create-dialog');
+                    const textarea = document.getElementById('note-content');
+                    modal.style.display = 'flex';
+                    textarea.value = '';
+                    adjustTextareaHeight(textarea);
+                    textarea.focus();
+                }
+            });
         }
 
-        function sendMessage() {
-            const messageInput = document.getElementById('message-input');
-            const messageText = messageInput.value.trim();
-            
-            if (messageText) {
-                const newMessage = {
-                    text: messageText,
-                    timestamp: new Date().toLocaleString()
+        function closeCreateDialog() {
+            document.getElementById('create-dialog').style.display = 'none';
+        }
+
+        function createNote() {
+            const content = document.getElementById('note-content').value.trim();
+            if (!content) {
+                showToast("Note content cannot be empty", 'error');
+                return;
+            }
+            const wordCount = countWords(content);
+            if (wordCount > MAX_WORDS) {
+                showToast(`Note exceeds ${MAX_WORDS} words (current: ${wordCount})`, 'error');
+                return;
+            }
+            if (!userPassword) {
+                showToast("Please set up a password first", 'error');
+                return;
+            }
+            try {
+                const encryptedContent = encryptNote(content);
+                const newNote = {
+                    content: encryptedContent,
+                    timestamp: new Date().toISOString(),
+                    userId: auth.currentUser.uid
                 };
-                
-                messagesRef.push(newMessage);
-                messageInput.value = '';
+                const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
+                notesRef.once('value', (snapshot) => {
+                    if (snapshot.numChildren() >= MAX_NOTES) {
+                        showToast(`Cannot create more than ${MAX_NOTES} notes`, 'error');
+                    } else {
+                        notesRef.push(newNote)
+                            .then(() => {
+                                showToast("Note created successfully");
+                                closeCreateDialog();
+                            })
+                            .catch(error => {
+                                console.error("Error creating note:", error);
+                                showToast("Failed to create note: " + error.message, 'error');
+                            });
+                    }
+                });
+            } catch (e) {
+                showToast("Encryption failed: " + e.message, 'error');
             }
         }
 
-        // Add Enter key support for sending messages
-        document.getElementById('message-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
+        function openViewDialog(noteId, encryptedContent) {
+            currentNoteId = noteId;
+            const modal = document.getElementById('view-dialog');
+            const textarea = document.getElementById('view-note-content');
+            textarea.value = decryptNote(encryptedContent);
+            adjustTextareaHeight(textarea);
+            modal.style.display = 'flex';
+        }
+
+        function closeViewDialog() {
+            document.getElementById('view-dialog').style.display = 'none';
+            currentNoteId = null;
+        }
+
+        function deleteNote() {
+            if (!currentNoteId) return;
+            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
+            notesRef.remove()
+                .then(() => {
+                    showToast("Note deleted successfully");
+                    closeViewDialog();
+                })
+                .catch(error => {
+                    console.error("Error deleting note:", error);
+                    showToast("Failed to delete note: " + error.message, 'error');
+                });
+        }
+
+        function adjustTextareaHeight(textarea) {
+            textarea.style.height = 'auto';
+            const maxHeight = parseInt(getComputedStyle(textarea).maxHeight);
+            const scrollHeight = textarea.scrollHeight;
+            textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+        }
     </script>
 </body>
 </html>
