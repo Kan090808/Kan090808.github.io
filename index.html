@@ -11,9 +11,10 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <!-- CryptoJS for AES encryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="config.js"></script>
-    <script src="env-config.js"></script>
-    <!-- <script src="local-config.js"></script> -->
+    <!-- <script src="config.js"></script>
+    <script src="env-config.js"></script> -->
+    <script src="local-config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -30,7 +31,7 @@
                 <img id="user-photo" class="user-photo" alt="User Photo">
                 <span id="user-name" class="user-name"></span>
                 <div id="account-menu" class="dropdown-menu">
-                    <button onclick="editPassword()">Set/Edit Password</button>
+                    <button onclick="editPassword()">Set Password</button>
                     <button onclick="signOut()">Logout</button>
                 </div>
             </div>
@@ -44,36 +45,44 @@
         <!-- Password Modal -->
         <div id="password-dialog" class="modal">
             <div class="modal-content">
-                <h2>Set Password</h2>
-                <input type="password" id="password-input" placeholder="Enter your password">
-                <div class="modal-buttons">
-                    <button class="save-btn" onclick="savePassword()">Save</button>
-                    <button class="cancel-btn" onclick="closePasswordDialog()">Cancel</button>
+                <div class="modal-header">
+                    <h2>Set Password</h2>
+                    <div class="modal-buttons">
+                        <button class="icon-btn save-btn" onclick="savePassword()"><i class="fas fa-save"></i></button>
+                        <button class="icon-btn cancel-btn" onclick="closePasswordDialog()"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
+                <small class="password-tips">For your security, we never save your password. You'll need to enter it again after refreshing the page.</small>
+                <input type="password" id="password-input" placeholder="Enter your password" enterkeyhint="done">
             </div>
         </div>
 
         <!-- Create Note Dialog -->
         <div id="create-dialog" class="modal">
             <div class="modal-content">
-                <h2>New Note</h2>
-                <textarea id="note-content" placeholder="Write your note here (max 500 words)..." oninput="adjustTextareaHeight(this)"></textarea>
-                <div class="modal-buttons">
-                    <button class="save-btn" onclick="createNote()">Save</button>
-                    <button class="cancel-btn" onclick="closeCreateDialog()">Cancel</button>
+                <div class="modal-header">
+                    <h2>New Note</h2>
+                    <div class="modal-buttons">
+                        <button class="icon-btn save-btn" onclick="createNote()"><i class="fas fa-save"></i></button>
+                        <button class="icon-btn cancel-btn" onclick="closeCreateDialog()"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
+                <textarea id="note-content" placeholder="Write your note here (max 500 words)..." oninput="adjustTextareaHeight(this)" enterkeyhint="done"></textarea>
             </div>
         </div>
 
         <!-- View Note Dialog -->
         <div id="view-dialog" class="modal">
             <div class="modal-content">
-                <h2>Note</h2>
-                <textarea id="view-note-content" readonly></textarea>
-                <div class="modal-buttons">
-                    <button class="delete-btn" onclick="deleteNote()">Delete</button>
-                    <button class="cancel-btn" onclick="closeViewDialog()">Close</button>
+                <div class="modal-header">
+                    <h2>Note</h2>
+                    <div class="modal-buttons">
+                        <button class="icon-btn save-btn" onclick="saveNoteChanges()"><i class="fas fa-save"></i></button>
+                        <button class="icon-btn delete-btn" onclick="deleteNote()"><i class="fas fa-trash"></i></button>
+                        <button class="icon-btn cancel-btn" onclick="closeViewDialog()"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
+                <textarea id="view-note-content" enterkeyhint="done"></textarea>
             </div>
         </div>
 
@@ -104,7 +113,7 @@
             auth.signInWithPopup(provider)
                 .then(() => {
                     showToast("Login successful");
-                    // openPasswordDialog();
+                    // showPasswordReminder();
                 })
                 .catch((error) => {
                     console.error("Error signing in:", error);
@@ -151,7 +160,7 @@
                 document.getElementById('user-name').textContent = user.displayName;
 
                 if (!userPassword) {
-                    openPasswordDialog();
+                    showPasswordReminder();
                 }
                 
                 loadNotes();
@@ -197,12 +206,14 @@
         }
 
         function decryptNote(encryptedContent) {
-            if (!userPassword) return "[Encrypted - Set Password to View]";
+            // if (!userPassword) return "[Encrypted - Set Password to View]";
+            if (!userPassword) return "[Encrypted] - " + encryptedContent;
             try {
                 const bytes = CryptoJS.AES.decrypt(encryptedContent, userPassword);
                 return bytes.toString(CryptoJS.enc.Utf8) || "[Decryption Failed - Wrong Password?]";
             } catch (e) {
-                return "[Decryption Failed - Wrong Password?]";
+                // return "[Decryption Failed - Wrong Password?]";
+                return "[Encrypted] - " + encryptedContent;
             }
         }
 
@@ -233,7 +244,7 @@
 
         function openCreateDialog() {
             if (!userPassword) {
-                showToast("Please set up a password first", 'error');
+                showPasswordReminder();
                 return;
             }
             const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
@@ -267,7 +278,7 @@
                 return;
             }
             if (!userPassword) {
-                showToast("Please set up a password first", 'error');
+                showPasswordReminder();
                 return;
             }
             try {
@@ -326,12 +337,97 @@
                 });
         }
 
+        function saveNoteChanges() {
+            if (!currentNoteId || !userPassword) return;
+            
+            const content = document.getElementById('view-note-content').value.trim();
+            if (!content) {
+                showToast("Note content cannot be empty", 'error');
+                return;
+            }
+            
+            const wordCount = countWords(content);
+            if (wordCount > MAX_WORDS) {
+                showToast(`Note exceeds ${MAX_WORDS} words (current: ${wordCount})`, 'error');
+                return;
+            }
+
+            try {
+                const encryptedContent = encryptNote(content);
+                const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
+                notesRef.update({
+                    content: encryptedContent,
+                    timestamp: new Date().toISOString()
+                })
+                .then(() => {
+                    showToast("Note updated successfully");
+                    closeViewDialog();
+                })
+                .catch(error => {
+                    console.error("Error updating note:", error);
+                    showToast("Failed to update note: " + error.message, 'error');
+                });
+            } catch (e) {
+                showToast("Encryption failed: " + e.message, 'error');
+            }
+        }
+
         function adjustTextareaHeight(textarea) {
             textarea.style.height = 'auto';
             const maxHeight = parseInt(getComputedStyle(textarea).maxHeight);
             const scrollHeight = textarea.scrollHeight;
             textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
         }
+
+        function showPasswordReminder() {
+            showToast("Please set up your password first", 'error');
+            openPasswordDialog();
+        }
+
+        function getOpenDialog() {
+            const dialogs = ['password-dialog', 'create-dialog', 'view-dialog'];
+            for (const dialogId of dialogs) {
+                const dialog = document.getElementById(dialogId);
+                if (dialog.style.display === 'flex') {
+                    return dialogId;
+                }
+            }
+            return null;
+        }
+
+        // Add keyboard event listener
+        document.addEventListener('keydown', (event) => {
+            const openDialog = getOpenDialog();
+            if (!openDialog) return;
+
+            if (event.key === 'Escape') {
+                // Handle ESC key
+                switch (openDialog) {
+                    case 'password-dialog':
+                        closePasswordDialog();
+                        break;
+                    case 'create-dialog':
+                        closeCreateDialog();
+                        break;
+                    case 'view-dialog':
+                        closeViewDialog();
+                        break;
+                }
+            } else if (event.key === 'Enter') {
+                // Handle Ctrl+Enter for confirmation
+                switch (openDialog) {
+                    case 'password-dialog':
+                        savePassword();
+                        break;
+                    case 'create-dialog':
+                        createNote();
+                        break;
+                    case 'view-dialog':
+                        saveNoteChanges();
+                        break;
+                }
+            }
+        });
     </script>
 </body>
 </html>
