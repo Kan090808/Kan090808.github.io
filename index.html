@@ -11,9 +11,15 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <!-- CryptoJS for AES encryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <!-- <script src="config.js"></script>
-    <script src="env-config.js"></script> -->
-    <script src="local-config.js"></script>
+    <script>
+        // Dynamic config import based on hostname
+        if (window.location.hostname === 'localhost') {
+            document.write('<script src="local-config.js"><\/script>');
+        } else {
+            document.write('<script src="config.js"><\/script>');
+            document.write('<script src="env-config.js"><\/script>');
+        }
+    </script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
