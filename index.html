@@ -2,6 +2,9 @@
 <html>
 <head>
     <title>Encrypted Note</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -14,67 +17,69 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Pre-login container -->
-    <div id="pre-login-container">
-        <h1 id="app-title">Encrypted Note</h1>
-        <button id="login-btn" onclick="signInWithGoogle()">Login with Google</button>
-    </div>
+    <div class="app-wrapper">
+        <!-- Pre-login container -->
+        <div id="pre-login-container" class="container">
+            <h1 id="app-title">Encrypted Note</h1>
+            <button id="login-btn" onclick="signInWithGoogle()">Login with Google</button>
+        </div>
 
-    <!-- Post-login container -->
-    <div id="auth-container">
-        <div id="user-info" onclick="toggleAccountMenu()">
-            <img id="user-photo">
-            <span id="user-name"></span>
-            <div id="account-menu">
-                <button onclick="editPassword()">Set/Edit Password</button>
-                <button onclick="signOut()">Logout</button>
+        <!-- Post-login container -->
+        <header id="auth-container" class="header">
+            <div id="user-info" class="user-info" onclick="toggleAccountMenu()">
+                <img id="user-photo" class="user-photo" alt="User Photo">
+                <span id="user-name" class="user-name"></span>
+                <div id="account-menu" class="dropdown-menu">
+                    <button onclick="editPassword()">Set/Edit Password</button>
+                    <button onclick="signOut()">Logout</button>
+                </div>
+            </div>
+        </header>
+        
+        <main id="note-container" class="main-content">
+            <button class="create-button" onclick="openCreateDialog()">Add New Note</button>
+            <div id="note-list" class="note-list"></div>
+        </main>
+
+        <!-- Password Modal -->
+        <div id="password-dialog" class="modal">
+            <div class="modal-content">
+                <h2>Set Password</h2>
+                <input type="password" id="password-input" placeholder="Enter your password">
+                <div class="modal-buttons">
+                    <button class="save-btn" onclick="savePassword()">Save</button>
+                    <button class="cancel-btn" onclick="closePasswordDialog()">Cancel</button>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <div id="note-container">
-        <button class="create-button" onclick="openCreateDialog()">Add New Note</button>
-        <div id="note-list" class="note-list"></div>
-    </div>
 
-    <!-- Password Modal -->
-    <div id="password-dialog" class="modal">
-        <div class="modal-content">
-            <h2>Set Password</h2>
-            <input type="password" id="password-input" placeholder="Enter your password">
-            <div class="modal-buttons">
-                <button class="save-btn" onclick="savePassword()">Save</button>
-                <button class="cancel-btn" onclick="closePasswordDialog()">Cancel</button>
+        <!-- Create Note Dialog -->
+        <div id="create-dialog" class="modal">
+            <div class="modal-content">
+                <h2>New Note</h2>
+                <textarea id="note-content" placeholder="Write your note here (max 500 words)..." oninput="adjustTextareaHeight(this)"></textarea>
+                <div class="modal-buttons">
+                    <button class="save-btn" onclick="createNote()">Save</button>
+                    <button class="cancel-btn" onclick="closeCreateDialog()">Cancel</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Create Note Dialog -->
-    <div id="create-dialog" class="modal">
-        <div class="modal-content">
-            <h2>New Note</h2>
-            <textarea id="note-content" placeholder="Write your note here (max 500 words)..." oninput="adjustTextareaHeight(this)"></textarea>
-            <div class="modal-buttons">
-                <button class="save-btn" onclick="createNote()">Save</button>
-                <button class="cancel-btn" onclick="closeCreateDialog()">Cancel</button>
+        <!-- View Note Dialog -->
+        <div id="view-dialog" class="modal">
+            <div class="modal-content">
+                <h2>Note</h2>
+                <textarea id="view-note-content" readonly></textarea>
+                <div class="modal-buttons">
+                    <button class="delete-btn" onclick="deleteNote()">Delete</button>
+                    <button class="cancel-btn" onclick="closeViewDialog()">Close</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- View Note Dialog -->
-    <div id="view-dialog" class="modal">
-        <div class="modal-content">
-            <h2>Note</h2>
-            <textarea id="view-note-content" readonly></textarea>
-            <div class="modal-buttons">
-                <button class="delete-btn" onclick="deleteNote()">Delete</button>
-                <button class="cancel-btn" onclick="closeViewDialog()">Close</button>
-            </div>
-        </div>
+        <!-- Toast Container -->
+        <div id="toast" class="toast"></div>
     </div>
-
-    <!-- Toast Container -->
-    <div id="toast" class="toast"></div>
 
     <script>
         firebase.initializeApp(getFirebaseConfig());
