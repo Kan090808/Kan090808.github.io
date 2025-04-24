@@ -399,3 +399,24 @@ body {
     min-height: 300px;
     resize: none;  /* Optional: prevents manual resizing */
 }
+
+#language-toggle {
+    background-color: #2a2a3e; /* Match the background color of the webpage */
+    color: white;
+    border: none;
+    border-radius: 50%;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s, box-shadow 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px; /* Adjusted padding */
+}
+
+#language-toggle i {
+    margin-right: 8px; /* Space between icon and text */
+    font-size: 18px; /* Adjust icon size */
+}

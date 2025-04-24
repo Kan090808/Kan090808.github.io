@@ -25,6 +25,11 @@
 </head>
 <body>
     <div class="app-wrapper">
+        <!-- Language Toggle Button -->
+        <button id="language-toggle" class="styled-button" onclick="toggleLanguage()">
+            <i class="fas fa-globe"></i>
+        </button>
+
         <!-- Pre-login container -->
         <div id="pre-login-container" class="container">
             <h1 id="app-title">Encrypted Note</h1>
@@ -37,14 +42,14 @@
                 <img id="user-photo" class="user-photo" alt="User Photo">
                 <span id="user-name" class="user-name"></span>
                 <div id="account-menu" class="dropdown-menu">
-                    <button onclick="editPassword()">Set Password</button>
-                    <button onclick="signOut()">Logout</button>
+                    <button id="set-password-btn" onclick="editPassword()">Set Password</button>
+                    <button id="logout-btn" onclick="signOut()">Logout</button>
                 </div>
             </div>
         </header>
         
         <main id="note-container" class="main-content">
-            <button class="create-button" onclick="openCreateDialog()">Add New Note</button>
+            <button id="add-note-btn" class="create-button" onclick="openCreateDialog()">Add New Note</button>
             <div id="note-list" class="note-list"></div>
         </main>
 
@@ -52,13 +57,13 @@
         <div id="password-dialog" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Set Password</h2>
+                    <h2 id="set-password-header">Set Password</h2>
                     <div class="modal-buttons">
                         <button class="icon-btn save-btn" onclick="savePassword()"><i class="fas fa-save"></i></button>
                         <button class="icon-btn cancel-btn" onclick="closePasswordDialog()"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
-                <small class="password-tips">For your security, we never save your password. You'll need to enter it again after refreshing the page.</small>
+                <small id="password-reminder-small" class="password-tips">For your security, we never save your password. You'll need to enter it again after refreshing the page.</small>
                 <input type="password" id="password-input" placeholder="Enter your password" enterkeyhint="done">
             </div>
         </div>
@@ -97,6 +102,60 @@
     </div>
 
     <script>
+        const languages = {
+            en: {
+                title: "Encrypted Note",
+                loginButton: "Login with Google",
+                setPassword: "Set Password",
+                logout: "Logout",
+                addNewNote: "Add New Note",
+                passwordPlaceholder: "Enter your password",
+                newNoteTitle: "New Note",
+                notePlaceholder: "Write your note here (max 500 words)...",
+                passwordReminder: "For your security, we never save your password. You'll need to enter it again after refreshing the page.",
+            },
+            zh: {
+                title: "加密笔记",
+                loginButton: "使用 Google 登录",
+                setPassword: "设置密码",
+                logout: "登出",
+                addNewNote: "添加新笔记",
+                passwordPlaceholder: "输入您的密码",
+                newNoteTitle: "新笔记",
+                notePlaceholder: "在此处编写您的笔记（最多500字）...",
+                passwordReminder: "为了您的安全，我们从不保存您的密码。刷新页面后，您需要再次输入密码。",
+            }
+        };
+
+        let currentLanguage = 'en';
+
+        function toggleLanguage() {
+            currentLanguage = currentLanguage === 'en' ? 'zh' : 'en';
+            localStorage.setItem('language', currentLanguage);
+            updateLanguage();
+        }
+
+        function updateLanguage() {
+            document.getElementById('app-title').textContent = languages[currentLanguage].title;
+            document.getElementById('login-btn').textContent = languages[currentLanguage].loginButton;
+            document.getElementById('set-password-btn').textContent = languages[currentLanguage].setPassword;
+            document.getElementById('set-password-header').textContent = languages[currentLanguage].setPassword;
+            document.getElementById('logout-btn').textContent = languages[currentLanguage].logout;
+            document.getElementById('add-note-btn').textContent = languages[currentLanguage].addNewNote;
+            document.getElementById('password-reminder-small').textContent = languages[currentLanguage].passwordReminder;
+            document.getElementById('password-input').placeholder = languages[currentLanguage].passwordPlaceholder;
+            document.getElementById('note-content').placeholder = languages[currentLanguage].notePlaceholder;
+            document.querySelector('#create-dialog .modal-header h2').textContent = languages[currentLanguage].newNoteTitle;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLanguage = localStorage.getItem('language');
+            if (savedLanguage) {
+                currentLanguage = savedLanguage;
+            }
+            updateLanguage();
+        });
+
         firebase.initializeApp(getFirebaseConfig());
         const auth = firebase.auth();
         const database = firebase.database();
