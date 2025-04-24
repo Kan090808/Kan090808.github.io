@@ -205,21 +205,28 @@
         }
 
         function encryptNote(content) {
-            if (!userPassword) {
-                throw new Error("No password set");
-            }
-            return CryptoJS.AES.encrypt(content, userPassword).toString();
+            if (!userPassword) throw new Error("No password set");
+            const iv = CryptoJS.lib.WordArray.random(16);
+            const salt = CryptoJS.lib.WordArray.random(128/8);
+            const key = CryptoJS.PBKDF2(userPassword, salt, { keySize: 256/32 });
+            const encrypted = CryptoJS.AES.encrypt(content, key, { iv: iv });
+            return iv.toString() + ":" + salt.toString() + ":" + encrypted.toString();
         }
 
-        function decryptNote(encryptedContent) {
-            // if (!userPassword) return "[Encrypted - Set Password to View]";
-            if (!userPassword) return "[Encrypted] - " + encryptedContent;
+        function decryptNote(encryptedData) {
+            if (!userPassword) return `[Encrypted] - ${encryptedData}`;
             try {
-                const bytes = CryptoJS.AES.decrypt(encryptedContent, userPassword);
-                return bytes.toString(CryptoJS.enc.Utf8) || "[Decryption Failed - Wrong Password?]";
+                const parts = encryptedData.split(":");
+                if (parts.length !== 3) throw new Error("Invalid format");
+                const iv = CryptoJS.enc.Hex.parse(parts[0]);
+                const salt = CryptoJS.enc.Hex.parse(parts[1]);
+                const ciphertext = parts[2];
+                const key = CryptoJS.PBKDF2(userPassword, salt, { keySize: 256/32 });
+                const decrypted = CryptoJS.AES.decrypt(ciphertext, key, { iv: iv });
+                const plaintext = decrypted.toString(CryptoJS.enc.Utf8);
+                return plaintext || `[Decryption Failed] - ${encryptedData}`;
             } catch (e) {
-                // return "[Decryption Failed - Wrong Password?]";
-                return "[Encrypted] - " + encryptedContent;
+                return `[Decryption Failed] - ${encryptedData}`;
             }
         }
 
