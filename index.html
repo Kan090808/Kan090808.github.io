@@ -302,11 +302,16 @@
                 snapshot.forEach((childSnapshot) => {
                     const note = childSnapshot.val();
                     const noteId = childSnapshot.key;
-                    const noteElement = document.createElement('div');
-                    noteElement.className = 'note-item';
-                    noteElement.textContent = decryptNote(note.content);
-                    noteElement.onclick = () => openViewDialog(noteId, note.content);
-                    noteList.appendChild(noteElement);
+                    const decryptedContent = decryptNote(note.content);
+                    
+                    // Only show successfully decrypted notes
+                    if (!decryptedContent.startsWith('[Decryption Failed]') && !decryptedContent.startsWith('[Encrypted]')) {
+                        const noteElement = document.createElement('div');
+                        noteElement.className = 'note-item';
+                        noteElement.textContent = decryptedContent;
+                        noteElement.onclick = () => openViewDialog(noteId, note.content);
+                        noteList.appendChild(noteElement);
+                    }
                 });
             }, (error) => {
                 console.error("Error loading notes:", error);

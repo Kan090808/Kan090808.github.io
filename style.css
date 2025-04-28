@@ -5,10 +5,11 @@
     font-family: 'Poppins', sans-serif;
 }
 
-body {
+html, body {
     background: linear-gradient(135deg, #1a1a2e, #16213e);
     color: #e0e0e0;
     min-height: 100vh;
+    max-height: 100vh;
     overflow-x: hidden;
 }
 
@@ -134,7 +135,7 @@ body {
     max-width: 900px;
     margin: 80px auto 40px;
     padding: 20px;
-    height: calc(100vh - 120px);
+    height: 80vh;
 }
 
 .create-button {
@@ -224,13 +225,16 @@ body {
     background: #2a2a3e;
     padding: 30px;
     width: 90%;
-    max-width: 500px;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     animation: slideIn 0.3s ease;
     display: flex;
     flex-direction: column;
     max-height: 80vh;
+}
+
+#password-dialog .modal-content{
+    max-width: 500px;
 }
 
 @keyframes slideIn {
