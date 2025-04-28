@@ -405,22 +405,24 @@ html, body {
 }
 
 #language-toggle {
-    background-color: #2a2a3e; /* Match the background color of the webpage */
-    color: white;
-    border: none;
-    border-radius: 50%;
-    border-radius: 5px;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background-color 0.3s, box-shadow 0.3s;
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 12px 24px; /* Adjusted padding */
+    gap: 12px;
+    padding: 8px 15px;
+    margin: 20px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 30px;
+    backdrop-filter: blur(5px);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #e0e0e0;
+    border: none;
+}
+
+#language-toggle:hover {
+    background: rgba(0,0,0,0.5);
 }
 
 #language-toggle i {
-    margin-right: 8px; /* Space between icon and text */
     font-size: 18px; /* Adjust icon size */
 }
