@@ -113,6 +113,8 @@
                 newNoteTitle: "New Note",
                 notePlaceholder: "Write your note here (max 500 words)...",
                 passwordReminder: "For your security, we never save your password. You'll need to enter it again after refreshing the page.",
+                noteCopied: "Note copied to clipboard",
+                copyFailed: "Failed to copy"
             },
             zh: {
                 title: "加密筆記",
@@ -124,6 +126,8 @@
                 newNoteTitle: "新筆記",
                 notePlaceholder: "在此處編寫您的筆記（最多500字）...",
                 passwordReminder: "為了您的安全，我們從不儲存您的密碼。重新整理頁面後，您需要再次輸入密碼。",
+                noteCopied: "已複製到剪貼簿",
+                copyFailed: "複製失敗"
             }
         };
 
@@ -308,8 +312,22 @@
                     if (!decryptedContent.startsWith('[Decryption Failed]') && !decryptedContent.startsWith('[Encrypted]')) {
                         const noteElement = document.createElement('div');
                         noteElement.className = 'note-item';
-                        noteElement.textContent = decryptedContent;
-                        noteElement.onclick = () => openViewDialog(noteId, note.content);
+                        
+                        const noteContent = document.createElement('span');
+                        noteContent.textContent = decryptedContent;
+                        noteContent.className = 'note-content';
+                        noteContent.onclick = () => openViewDialog(noteId, note.content);
+                        
+                        const copyButton = document.createElement('button');
+                        copyButton.className = 'icon-btn copy-btn';
+                        copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                        copyButton.onclick = (e) => {
+                            e.stopPropagation();
+                            copyNoteContent(decryptedContent);
+                        };
+                        
+                        noteElement.appendChild(noteContent);
+                        noteElement.appendChild(copyButton);
                         noteList.appendChild(noteElement);
                     }
                 });
@@ -459,6 +477,17 @@
         function showPasswordReminder() {
             showToast("Please set up your password first", 'error');
             openPasswordDialog();
+        }
+        
+        function copyNoteContent(content) {
+            navigator.clipboard.writeText(content)
+                .then(() => {
+                    showToast(languages[currentLanguage].noteCopied);
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    showToast(languages[currentLanguage].copyFailed, 'error');
+                });
         }
 
         function getOpenDialog() {
