@@ -30,7 +30,7 @@ A secure, client-side encrypted note-taking application built with Firebase and 
 
 ## Limitations
 
-- Maximum 10 notes per user
+- Maximum 50 notes per user
 - 500-word limit per note
 - Password cannot be recovered if forgotten
 - Notes cannot be decrypted without the correct password
@@ -110,7 +110,7 @@ function getFirebaseConfig() {
 
 ## 限制
 
-- 每個用戶最多 10 條筆記
+- 每個用戶最多 50 條筆記
 - 每條筆記 500 字限制
 - 如果忘記密碼無法恢復
 - 沒有正確密碼無法解密筆記
