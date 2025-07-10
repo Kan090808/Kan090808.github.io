@@ -11,6 +11,10 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <!-- CryptoJS for AES encryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <!-- Markdown rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <!-- XSS protection for markdown HTML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.7/purify.min.js"></script>
     <script>
         // Dynamic config import based on hostname
         if (window.location.hostname === 'localhost') {
@@ -96,12 +100,14 @@
                 <div class="modal-header">
                     <h2>Note</h2>
                     <div class="modal-buttons">
+                        <button class="icon-btn preview-btn" onclick="togglePreview()" title="Toggle Preview"><i class="fas fa-eye"></i></button>
                         <button class="icon-btn save-btn" onclick="saveNoteChanges()"><i class="fas fa-save"></i></button>
                         <button class="icon-btn delete-btn" onclick="deleteNote()"><i class="fas fa-trash"></i></button>
                         <button class="icon-btn cancel-btn" onclick="closeViewDialog()"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
                 <textarea id="view-note-content" enterkeyhint="done"></textarea>
+                <div id="view-note-preview" class="note-preview" style="display: none;"></div>
             </div>
         </div>
 
@@ -122,7 +128,9 @@
                 notePlaceholder: "Write your note here (max 500 words)...",
                 passwordReminder: "For your security, we never save your password. You'll need to enter it again after refreshing the page.",
                 noteCopied: "Note copied to clipboard",
-                copyFailed: "Failed to copy"
+                copyFailed: "Failed to copy",
+                previewMode: "Preview Mode",
+                editMode: "Edit Mode"
             },
             zh: {
                 title: "加密筆記",
@@ -135,7 +143,9 @@
                 notePlaceholder: "在此處編寫您的筆記（最多500字）...",
                 passwordReminder: "為了您的安全，我們從不儲存您的密碼。重新整理頁面後，您需要再次輸入密碼。",
                 noteCopied: "已複製到剪貼簿",
-                copyFailed: "複製失敗"
+                copyFailed: "複製失敗",
+                previewMode: "預覽模式",
+                editMode: "編輯模式"
             }
         };
 
@@ -322,7 +332,9 @@
                         noteElement.className = 'note-item';
                         
                         const noteContent = document.createElement('span');
-                        noteContent.textContent = decryptedContent;
+                        // Use markdown preview for note list
+                        const previewText = renderPreview(decryptedContent);
+                        noteContent.textContent = previewText;
                         noteContent.className = 'note-content';
                         noteContent.onclick = () => openViewDialog(noteId, note.content);
                         
@@ -357,6 +369,7 @@
                 } else {
                     const modal = document.getElementById('create-dialog');
                     const textarea = document.getElementById('note-content');
+                    
                     modal.style.display = 'flex';
                     textarea.value = '';
                     adjustTextareaHeight(textarea);
@@ -416,8 +429,32 @@
             currentNoteId = noteId;
             const modal = document.getElementById('view-dialog');
             const textarea = document.getElementById('view-note-content');
-            textarea.value = decryptNote(encryptedContent);
+            const preview = document.getElementById('view-note-preview');
+            const previewBtn = document.querySelector('.preview-btn i');
+            const button = document.querySelector('.preview-btn');
+            
+            // Set content first
+            const content = decryptNote(encryptedContent);
+            textarea.value = content;
             adjustTextareaHeight(textarea);
+            
+            // Default to preview mode for existing notes
+            isPreviewMode = true;
+            const renderedHtml = renderMarkdown(content);
+            preview.innerHTML = renderedHtml;
+            
+            // Make all links open in new tab for security
+            const links = preview.querySelectorAll('a');
+            links.forEach(link => {
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+            });
+            
+            textarea.style.display = 'none';
+            preview.style.display = 'block';
+            previewBtn.className = 'fas fa-edit';
+            button.title = languages[currentLanguage].editMode;
+            
             modal.style.display = 'flex';
         }
 
@@ -442,6 +479,11 @@
 
         function saveNoteChanges() {
             if (!currentNoteId || !userPassword) return;
+            
+            // If in preview mode, switch to edit mode first to get the content
+            if (isPreviewMode) {
+                togglePreview();
+            }
             
             const content = document.getElementById('view-note-content').value.trim();
             if (!content) {
@@ -498,6 +540,88 @@
                 });
         }
 
+        // Markdown rendering functions
+        function renderMarkdown(text) {
+            if (!text) return '';
+            try {
+                // Configure marked with secure settings
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true,
+                    sanitize: false // We'll use DOMPurify for sanitization
+                });
+                
+                // Convert markdown to HTML
+                const html = marked.parse(text);
+                
+                // Sanitize the HTML to prevent XSS attacks
+                return DOMPurify.sanitize(html, {
+                    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'],
+                    ALLOWED_ATTR: ['href', 'title', 'target'],
+                    ALLOWED_URI_REGEXP: /^(?:(?:https?|ftp):\/\/|mailto:|tel:)/i
+                });
+            } catch (error) {
+                console.error('Markdown rendering error:', error);
+                return text; // Return original text if markdown fails
+            }
+        }
+
+        function renderPreview(text, maxLength = 150) {
+            if (!text) return '';
+            
+            // First render markdown to get clean text for preview
+            const html = renderMarkdown(text);
+            
+            // Create a temporary element to extract text content
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const textContent = tempDiv.textContent || tempDiv.innerText || '';
+            
+            // Truncate if needed
+            if (textContent.length > maxLength) {
+                return textContent.substring(0, maxLength) + '...';
+            }
+            
+            return textContent;
+        }
+
+        let isPreviewMode = false;
+
+        function togglePreview() {
+            const textarea = document.getElementById('view-note-content');
+            const preview = document.getElementById('view-note-preview');
+            const previewBtn = document.querySelector('.preview-btn i');
+            const button = document.querySelector('.preview-btn');
+            
+            if (isPreviewMode) {
+                // Switch to edit mode
+                textarea.style.display = 'block';
+                preview.style.display = 'none';
+                previewBtn.className = 'fas fa-eye';
+                button.title = languages[currentLanguage].previewMode;
+                isPreviewMode = false;
+            } else {
+                // Switch to preview mode
+                const content = textarea.value;
+                const renderedHtml = renderMarkdown(content);
+                preview.innerHTML = renderedHtml;
+                
+                // Make all links open in new tab for security
+                const links = preview.querySelectorAll('a');
+                links.forEach(link => {
+                    link.setAttribute('target', '_blank');
+                    link.setAttribute('rel', 'noopener noreferrer');
+                });
+                
+                textarea.style.display = 'none';
+                preview.style.display = 'block';
+                previewBtn.className = 'fas fa-edit';
+                button.title = languages[currentLanguage].editMode;
+                isPreviewMode = true;
+            }
+        }
+
+
         function getOpenDialog() {
             const dialogs = ['password-dialog', 'create-dialog', 'view-dialog'];
             for (const dialogId of dialogs) {
@@ -528,17 +652,34 @@
                         break;
                 }
             } else if (event.key === 'Enter') {
-                // Handle Ctrl+Enter for confirmation
-                switch (openDialog) {
-                    case 'password-dialog':
-                        savePassword();
-                        break;
-                    case 'create-dialog':
-                        createNote();
-                        break;
-                    case 'view-dialog':
-                        saveNoteChanges();
-                        break;
+                const target = event.target;
+                
+                // Check if Cmd+Enter (Mac) or Ctrl+Enter (Windows/Linux)
+                if (event.metaKey || event.ctrlKey) {
+                    // Handle Cmd+Enter/Ctrl+Enter for saving
+                    event.preventDefault(); // Prevent default behavior
+                    switch (openDialog) {
+                        case 'password-dialog':
+                            savePassword();
+                            break;
+                        case 'create-dialog':
+                            createNote();
+                            break;
+                        case 'view-dialog':
+                            saveNoteChanges();
+                            break;
+                    }
+                } else {
+                    // Handle plain Enter key
+                    if (target.tagName === 'INPUT' && target.type === 'password') {
+                        // For password input, Enter saves the password
+                        event.preventDefault();
+                        if (openDialog === 'password-dialog') {
+                            savePassword();
+                        }
+                    }
+                    // For textareas, let Enter create a new line (default behavior)
+                    // No preventDefault() needed for textareas
                 }
             }
         });
