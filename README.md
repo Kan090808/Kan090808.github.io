@@ -6,9 +6,12 @@ A secure, client-side encrypted note-taking application built with Firebase and 
 
 1. Login with your Google account
 2. Set up an encryption password
-3. Create notes (up to 500 words each)
-4. View and manage your encrypted notes
-5. Notes are encrypted before storage
+3. If you are whitelisted, you can create notes (up to 5000 characters each)
+4. If you are not whitelisted, you can log in but cannot create notes
+5. If you are not whitelisted, you will see a dialog to contact the developer for whitelisting (send your userID via email)
+6. You can check your userID after clicking the profile button
+7. View and manage your encrypted notes
+8. Notes are encrypted before storage
 
 ## Security Features
 
@@ -30,8 +33,12 @@ A secure, client-side encrypted note-taking application built with Firebase and 
 
 ## Limitations
 
-- Maximum 50 notes per user
-- 500-word limit per note
+- Website is in beta; only whitelisted users can create notes
+- Maximum 5000 characters per note
+- Non-whitelisted users can log in but cannot create notes
+- If you are not whitelisted, you will see a dialog to contact the developer for whitelisting (send your userID via email)
+- You can check your userID after clicking the profile button
+- You should send your userID to the developer for whitelisting
 - Password cannot be recovered if forgotten
 - Notes cannot be decrypted without the correct password
 
@@ -87,9 +94,12 @@ function getFirebaseConfig() {
 
 1. 使用您的 Google 帳戶登入
 2. 設定加密密碼
-3. 創建筆記（每篇最多 500 字）
-4. 查看和管理您的加密筆記
-5. 筆記在儲存前會被加密
+3. 若您在白名單中，則可創建筆記（每篇最多 5000 字）
+4. 若您不在白名單中，仍可登入但無法創建筆記
+5. 若您不在白名單中，會看到聯絡開發者以加入白名單的對話框（請通過電子郵件發送您的使用者 ID）
+6. 點擊個人資料按鈕後可查看您的使用者 ID
+7. 查看和管理您的加密筆記
+8. 筆記在儲存前會被加密
 
 ## 安全功能
 
@@ -110,8 +120,12 @@ function getFirebaseConfig() {
 
 ## 限制
 
-- 每個用戶最多 50 條筆記
-- 每條筆記 500 字限制
+- 網站目前為測試階段，僅限白名單用戶可創建筆記
+- 每條筆記 5000 字限制
+- 不在白名單的用戶可登入但無法創建筆記
+- 不在白名單時會看到聯絡開發者的對話框（請通過電子郵件發送您的使用者 ID）
+- 點擊個人資料按鈕後可查看您的使用者 ID
+- 您應將您的使用者 ID 發送給開發者以加入白名單
 - 如果忘記密碼無法恢復
 - 沒有正確密碼無法解密筆記
 

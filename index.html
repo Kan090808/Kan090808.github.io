@@ -90,7 +90,7 @@
                         <button class="icon-btn cancel-btn" onclick="closeCreateDialog()"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
-                <textarea id="note-content" placeholder="Write your note here (max 500 words)..." oninput="adjustTextareaHeight(this)" enterkeyhint="done"></textarea>
+                <textarea id="note-content" placeholder="Write your note here (max 5000 characters)..." oninput="adjustTextareaHeight(this)" enterkeyhint="done"></textarea>
             </div>
         </div>
 
@@ -125,7 +125,7 @@
                 addNewNote: "Add New Note",
                 passwordPlaceholder: "Enter your password",
                 newNoteTitle: "New Note",
-                notePlaceholder: "Write your note here (max 500 words)...",
+                notePlaceholder: "Write your note here (max 5000 characters)...",
                 passwordReminder: "For your security, we never save your password. You'll need to enter it again after refreshing the page.",
                 noteCopied: "Note copied to clipboard",
                 copyFailed: "Failed to copy",
@@ -140,7 +140,7 @@
                 addNewNote: "新增筆記",
                 passwordPlaceholder: "輸入您的密碼",
                 newNoteTitle: "新筆記",
-                notePlaceholder: "在此處編寫您的筆記（最多500字）...",
+                notePlaceholder: "在此處編寫您的筆記（最多5000字）...",
                 passwordReminder: "為了您的安全，我們從不儲存您的密碼。重新整理頁面後，您需要再次輸入密碼。",
                 noteCopied: "已複製到剪貼簿",
                 copyFailed: "複製失敗",
@@ -185,7 +185,46 @@
         let userPassword = null;
         let currentNoteId = null;
         const MAX_NOTES = 50;
-        const MAX_WORDS = 500;
+        const MAX_CHARS = 5000;
+
+        let isWhitelisted = false;
+        let currentUserId = null;
+
+        function showDialogNotWhitelisted(userId) {
+            // Create modal if not exists
+            let modal = document.getElementById('not-whitelist-dialog');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'not-whitelist-dialog';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Not in Whitelist</h2>
+                        <button class="icon-btn cancel-btn" onclick="closeNotWhitelistDialog()"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div style="margin: 16px 0;">
+                        <p>You are not in the whitelist and cannot create notes.<br>Your UserID: <span id="not-whitelist-uid" style="font-family:monospace;"></span></p>
+                        <button id="contact-dev-btn" class="styled-button" style="margin-top:12px;">Contact Developer</button>
+                    </div>
+                </div>`;
+                document.body.appendChild(modal);
+                document.getElementById('contact-dev-btn').onclick = function() {
+                    const mailto = `mailto:kanjingterng@gmail.com?subject=Whitelist%20Request&body=Please%20add%20me%20to%20the%20whitelist.%20My%20UserID%20is:%20${encodeURIComponent(currentUserId)}`;
+                    window.open(mailto, '_blank');
+                };
+            }
+            document.getElementById('not-whitelist-uid').textContent = userId;
+            modal.style.display = 'flex';
+        }
+        function closeNotWhitelistDialog() {
+            const modal = document.getElementById('not-whitelist-dialog');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function countChars(text) {
+            return text.length;
+        }
 
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
@@ -237,20 +276,40 @@
             const preLoginContainer = document.getElementById('pre-login-container');
             const authContainer = document.getElementById('auth-container');
             const noteContainer = document.getElementById('note-container');
-            
             if (user) {
                 preLoginContainer.style.display = 'none';
                 authContainer.style.display = 'block';
                 noteContainer.style.display = 'block';
-                
                 document.getElementById('user-photo').src = user.photoURL;
                 document.getElementById('user-name').textContent = user.displayName;
-
                 if (!userPassword) {
                     showPasswordReminder();
                 }
-                
-                loadNotes();
+                currentUserId = user.uid;
+                // Add userID to profile menu
+                let userIdElem = document.getElementById('user-id-menu');
+                if (!userIdElem) {
+                    userIdElem = document.createElement('div');
+                    userIdElem.id = 'user-id-menu';
+                    userIdElem.style = 'padding: 8px 16px; font-size: 12px; color: #888; border-top: 1px solid #eee; word-break: break-all;';
+                    document.getElementById('account-menu').appendChild(userIdElem);
+                }
+                userIdElem.textContent = `UserID: ${user.uid}`;
+                userIdElem.style.cursor = 'pointer';
+                userIdElem.title = 'Click to copy UserID';
+                userIdElem.onclick = function() {
+                    navigator.clipboard.writeText(user.uid)
+                        .then(() => showToast('Copied successfully'))
+                        .catch(() => showToast('Copy failed', 'error'));
+                };
+                // Check whitelist from Firebase
+                database.ref(`users/${user.uid}/whitelist`).once('value').then((snapshot) => {
+                    isWhitelisted = !!snapshot.val();
+                    if (!isWhitelisted) {
+                        showDialogNotWhitelisted(user.uid);
+                    }
+                    loadNotes();
+                });
             } else {
                 preLoginContainer.style.display = 'flex';
                 authContainer.style.display = 'none';
@@ -380,6 +439,10 @@
                 showPasswordReminder();
                 return;
             }
+            if (!isWhitelisted) {
+                showDialogNotWhitelisted(currentUserId);
+                return;
+            }
             const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
             notesRef.once('value', (snapshot) => {
                 if (snapshot.numChildren() >= MAX_NOTES) {
@@ -387,7 +450,6 @@
                 } else {
                     const modal = document.getElementById('create-dialog');
                     const textarea = document.getElementById('note-content');
-                    
                     modal.style.display = 'flex';
                     textarea.value = '';
                     adjustTextareaHeight(textarea);
@@ -406,9 +468,9 @@
                 showToast("Note content cannot be empty", 'error');
                 return;
             }
-            const wordCount = countWords(content);
-            if (wordCount > MAX_WORDS) {
-                showToast(`Note exceeds ${MAX_WORDS} words (current: ${wordCount})`, 'error');
+            const charCount = countChars(content);
+            if (charCount > MAX_CHARS) {
+                showDialogOverCharLimit(charCount);
                 return;
             }
             if (!userPassword) {
@@ -443,81 +505,47 @@
             }
         }
 
-        function openViewDialog(noteId, encryptedContent) {
-            currentNoteId = noteId;
-            const modal = document.getElementById('view-dialog');
-            const textarea = document.getElementById('view-note-content');
-            const preview = document.getElementById('view-note-preview');
-            const previewBtn = document.querySelector('.preview-btn i');
-            const button = document.querySelector('.preview-btn');
-            
-            // Set content first
-            const content = decryptNote(encryptedContent);
-            textarea.value = content;
-            adjustTextareaHeight(textarea);
-            
-            // Default to preview mode for existing notes
-            isPreviewMode = true;
-            const renderedHtml = renderMarkdown(content);
-            preview.innerHTML = renderedHtml;
-            
-            // Make all links open in new tab for security and add inline preview
-            const links = preview.querySelectorAll('a');
-            links.forEach(link => {
-                link.setAttribute('target', '_blank');
-                link.setAttribute('rel', 'noopener noreferrer');
-            });
-            
-            // Add inline link previews
-            addInlineLinkPreviews(preview);
-            
-            textarea.style.display = 'none';
-            preview.style.display = 'block';
-            previewBtn.className = 'fas fa-edit';
-            button.title = languages[currentLanguage].editMode;
-            
+        function showDialogOverCharLimit(count) {
+            let modal = document.getElementById('char-limit-dialog');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'char-limit-dialog';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Note Too Long</h2>
+                        <button class="icon-btn cancel-btn" onclick="closeCharLimitDialog()"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div style="margin: 16px 0;">
+                        <p>Your note exceeds the 5000 character limit.<br>(Current: <span id='char-limit-current'></span> characters)</p>
+                    </div>
+                </div>`;
+                document.body.appendChild(modal);
+            }
+            document.getElementById('char-limit-current').textContent = count;
             modal.style.display = 'flex';
         }
-
-        function closeViewDialog() {
-            document.getElementById('view-dialog').style.display = 'none';
-            currentNoteId = null;
-        }
-
-        function deleteNote() {
-            if (!currentNoteId) return;
-            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
-            notesRef.remove()
-                .then(() => {
-                    showToast("Note deleted successfully");
-                    closeViewDialog();
-                })
-                .catch(error => {
-                    console.error("Error deleting note:", error);
-                    showToast("Failed to delete note: " + error.message, 'error');
-                });
+        function closeCharLimitDialog() {
+            const modal = document.getElementById('char-limit-dialog');
+            if (modal) modal.style.display = 'none';
         }
 
         function saveNoteChanges() {
             if (!currentNoteId || !userPassword) return;
-            
-            // If in preview mode, switch to edit mode first to get the content
             if (isPreviewMode) {
                 togglePreview();
             }
-            
             const content = document.getElementById('view-note-content').value.trim();
             if (!content) {
                 showToast("Note content cannot be empty", 'error');
                 return;
             }
-            
-            const wordCount = countWords(content);
-            if (wordCount > MAX_WORDS) {
-                showToast(`Note exceeds ${MAX_WORDS} words (current: ${wordCount})`, 'error');
+            const charCount = countChars(content);
+            if (charCount > MAX_CHARS) {
+                showDialogOverCharLimit(charCount);
                 return;
             }
-
             try {
                 const encryptedContent = encryptNote(content);
                 const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
@@ -760,7 +788,7 @@
             } else {
                 const websiteIcon = getWebsiteIcon(metadata.domain);
                 if (websiteIcon) {
-                    html += `<img src="${escapeHtml(websiteIcon)}" class="preview-thumbnail" alt="Website icon" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMmEyYTNlIiBzdHJva2U9IiNmZjAwN2EiIHN0cm9rZS13aWR0aD0iMiIgcng9IjYiLz4KPHN2ZyB4PSIyNSIgeT0iMjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjY2NjY2NjIj4KPHBhdGggZD0iTTEwIDEyYTIgMiAwIDEgMDQgMCAyIDIgMCAwIDAtNCAwaiBNMjEgMTJjMCAyLjQxNS0xLjcyNSA0LjQ5NS00IDUuMzAzVjE5YTEgMSAwIDAgMS0xIDFIMTJhMSAxIDAgMCAxIDAtMmg0di0xLjY5N2MtMS4xNzUuMzY5LTIuNDY3LjYxNS0zLjkxNS42ODRMMTIgMTdoLS4wODVjLTEuNDQ4LS4wNjktMi43NC0uMzE1LTMuOTE1LS42ODRWMTdoNGExIDEgMCAxIDEgMCAySDRhMSAxIDAgMCAxLTEtMXYtMS42OTdjLTIuMjc1LS44MDgtNC0yLjg4OC00LTUuMzAzIDAtMi40MTUgMS43MjUtNC40OTUgNC01LjMwM1Y1YTEgMSAwIDAgMSAxLTFoOGExIDEgMCAwIDEgMCAySDRWNy42OTdjMS4xNzUtLjM2OSAyLjQ2Ny0uNjE1LTMuOTE1LS42ODRMMTIgN2guMDg1YzEuNDQ4LjA2OSAyLjc0LjMxNSAzLjkxNS42ODRWNmgtNGExIDEgMCAwIDEgMC0yaDhhMSAxIDAgMCAxIDEgMXYxLjY5N2MyLjI3NS44MDggNCAyLjg4OCA0IDUuMzAzeiIvPgo8L3N2Zz4KPC9zdmc+'; this.style.opacity='0.7';">`;
+                    html += `<img src="${escapeHtml(websiteIcon)}" class="preview-thumbnail" alt="Website icon" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1zbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMmEyYTNlIiBzdHJva2U9IiNmZjAwN2EiIHN0cm9rZS13aWR0aD0iMiIgcng9IjYiLz4KPHN2ZyB4PSIyNSIgeT0iMjUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjY2NjY2NjIj4KPHBhdGggZD0iTTEwIDEyYTIgMiAwIDEgMDQgMCAyIDIgMCAwIDAtNCAwaiBNMjEgMTJjMCAyLjQxNS0xLjcyNSA0LjQ5NS00IDUuMzAzVjE5YTEgMSAwIDAgMS0xIDFIMTJhMSAxIDAgMCAxIDAtMmg0di0xLjY5N2MtMS4xNzUuMzY5LTIuNDY3LjYxNS0zLjkxNS42ODRMMTIgMTdoLS4wODVjLTEuNDQ4LS4wNjktMi43NC0uMzE1LTMuOTE1LS42ODRWMTdoNGExIDEgMCAxIDEgMCAySDRhMSAxIDAgMCAxLTEtMXYtMS42OTdjLTIuMjc1LS44MDgtNC0yLjg4OC00LTUuMzAzIDAtMi40MTUgMS43MjUtNC40OTUgNC01LjMwM1Y1YTEgMSAwIDAgMSAxLTFoOGExIDEgMCAwIDEgMCAySDRWNy42OTdjMS4xNzUtLjM2OSAyLjQ2Ny0uNjE1LTMuOTE1LS42ODRMMTIgN2guMDg1YzEuNDQ4LjA2OSAyLjc0LjMxNSAzLjkxNS42ODRWNmgtNGExIDEgMCAwIDEgMC0yaDhhMSAxIDAgMCAxIDEgMXYxLjY5N2MyLjI3NS44MDggNCAyLjg4OCA0IDUuMzAzeiIvPgo8L3N2Zz4KPC9zdmc+'; this.style.opacity='0.7';">`;
                 } else {
                     html += '<div class="preview-thumbnail-placeholder">🌐</div>';
                 }
