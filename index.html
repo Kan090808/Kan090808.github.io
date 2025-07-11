@@ -147,6 +147,7 @@
         };
 
         let currentLanguage = 'en';
+        let isPreviewMode = true;
 
         function toggleLanguage() {
             currentLanguage = currentLanguage === 'en' ? 'zh' : 'en';
@@ -236,7 +237,6 @@
             auth.signInWithPopup(provider)
                 .then(() => {
                     showToast("Login successful");
-                    // showPasswordReminder();
                 })
                 .catch((error) => {
                     console.error("Error signing in:", error);
@@ -365,10 +365,6 @@
             } catch (e) {
                 return `[Decryption Failed] - ${encryptedData}`;
             }
-        }
-
-        function countWords(text) {
-            return text.trim().split(/\s+/).filter(word => word.length > 0).length;
         }
 
         function loadNotes() {
@@ -517,7 +513,7 @@
             
             // Default to preview mode for existing notes
             isPreviewMode = true;
-            preview.innerHTML = content;
+            preview.innerHTML = renderPlainTextWithLinks(escapeHtml(content));
             
             // Make all links open in new tab for security and add inline preview
             const links = preview.querySelectorAll('a');
@@ -756,6 +752,16 @@
                 }
             }
         });
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
     </script>
 </body>
 </html>
