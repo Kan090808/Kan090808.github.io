@@ -11,10 +11,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <!-- CryptoJS for AES encryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <!-- Markdown rendering -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
-    <!-- XSS protection for markdown HTML -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.7/purify.min.js"></script>
     <script>
         // Dynamic config import based on hostname
         if (window.location.hostname === 'localhost') {
@@ -411,7 +407,7 @@
                     noteElement.onclick = () => openViewDialog(id, note.content);
                     
                     const noteContent = document.createElement('span');
-                    // Use markdown preview for note list
+                    // Use plain text with clickable URLs for note list
                     const previewText = renderPreview(decryptedContent);
                     noteContent.textContent = previewText;
                     noteContent.className = 'note-content';
@@ -505,6 +501,57 @@
             }
         }
 
+        function openViewDialog(noteId, encryptedContent) {
+            currentNoteId = noteId;
+            const modal = document.getElementById('view-dialog');
+            const textarea = document.getElementById('view-note-content');
+            const preview = document.getElementById('view-note-preview');
+            const previewBtn = document.querySelector('.preview-btn i');
+            const button = document.querySelector('.preview-btn');
+            
+            // Set content first
+            const content = decryptNote(encryptedContent);
+            textarea.value = content;
+            adjustTextareaHeight(textarea);
+            
+            // Default to preview mode for existing notes
+            isPreviewMode = true;
+            preview.innerHTML = content;
+            
+            // Make all links open in new tab for security and add inline preview
+            const links = preview.querySelectorAll('a');
+            links.forEach(link => {
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+            });
+            
+            textarea.style.display = 'none';
+            preview.style.display = 'block';
+            previewBtn.className = 'fas fa-edit';
+            button.title = languages[currentLanguage].editMode;
+            
+            modal.style.display = 'flex';
+        }
+
+        function closeViewDialog() {
+            document.getElementById('view-dialog').style.display = 'none';
+            currentNoteId = null;
+        }
+
+        function deleteNote() {
+            if (!currentNoteId) return;
+            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
+            notesRef.remove()
+                .then(() => {
+                    showToast("Note deleted successfully");
+                    closeViewDialog();
+                })
+                .catch(error => {
+                    console.error("Error deleting note:", error);
+                    showToast("Failed to delete note: " + error.message, 'error');
+                });
+        }
+
         function showDialogOverCharLimit(count) {
             let modal = document.getElementById('char-limit-dialog');
             if (!modal) {
@@ -589,82 +636,32 @@
                 });
         }
 
-        // Markdown rendering functions
-        function renderMarkdown(text) {
+        function renderPlainTextWithLinks(text) {
             if (!text) return '';
-            try {
-                // Configure marked with secure settings
-                marked.setOptions({
-                    breaks: true,
-                    gfm: true,
-                    sanitize: false // We'll use DOMPurify for sanitization
-                });
-                
-                // Convert markdown to HTML
-                const html = marked.parse(text);
-                
-                // Sanitize the HTML to prevent XSS attacks
-                return DOMPurify.sanitize(html, {
-                    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'],
-                    ALLOWED_ATTR: ['href', 'title', 'target'],
-                    ALLOWED_URI_REGEXP: /^(?:(?:https?|ftp):\/\/|mailto:|tel:)/i
-                });
-            } catch (error) {
-                console.error('Markdown rendering error:', error);
-                return text; // Return original text if markdown fails
-            }
+            // Replace URLs with clickable links
+            const urlRegex = /(https?:\/\/[\w\-._~:/?#[\]@!$&'()*+,;=%]+)|(www\.[\w\-._~:/?#[\]@!$&'()*+,;=%]+)/gi;
+            return text.replace(urlRegex, function(url) {
+                let href = url;
+                if (!href.startsWith('http')) href = 'http://' + href;
+                return '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+            });
         }
 
-        function renderPreview(text, maxLength = 150) {
-            if (!text) return '';
-            
-            // First render markdown to get clean text for preview
-            const html = renderMarkdown(text);
-            
-            // Create a temporary element to extract text content
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = html;
-            const textContent = tempDiv.textContent || tempDiv.innerText || '';
-            
-            // Truncate if needed
-            if (textContent.length > maxLength) {
-                return textContent.substring(0, maxLength) + '...';
-            }
-            
-            return textContent;
-        }
-
-        let isPreviewMode = false;
-
+        // Update togglePreview to use plain text with links
         function togglePreview() {
             const textarea = document.getElementById('view-note-content');
             const preview = document.getElementById('view-note-preview');
             const previewBtn = document.querySelector('.preview-btn i');
             const button = document.querySelector('.preview-btn');
-            
             if (isPreviewMode) {
-                // Switch to edit mode
                 textarea.style.display = 'block';
                 preview.style.display = 'none';
                 previewBtn.className = 'fas fa-eye';
                 button.title = languages[currentLanguage].previewMode;
                 isPreviewMode = false;
             } else {
-                // Switch to preview mode
                 const content = textarea.value;
-                const renderedHtml = renderMarkdown(content);
-                preview.innerHTML = renderedHtml;
-                
-                // Make all links open in new tab for security and add inline preview
-                const links = preview.querySelectorAll('a');
-                links.forEach(link => {
-                    link.setAttribute('target', '_blank');
-                    link.setAttribute('rel', 'noopener noreferrer');
-                });
-                
-                // Add inline link previews
-                addInlineLinkPreviews(preview);
-                
+                preview.innerHTML = renderPlainTextWithLinks(escapeHtml(content));
                 textarea.style.display = 'none';
                 preview.style.display = 'block';
                 previewBtn.className = 'fas fa-edit';
@@ -673,6 +670,15 @@
             }
         }
 
+        // Update note list preview to use plain text
+        function renderPreview(text, maxLength = 150) {
+            if (!text) return '';
+            let plain = text;
+            if (plain.length > maxLength) {
+                plain = plain.substring(0, maxLength) + '...';
+            }
+            return plain;
+        }
 
         function getOpenDialog() {
             const dialogs = ['password-dialog', 'create-dialog', 'view-dialog'];
