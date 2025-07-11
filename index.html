@@ -97,6 +97,7 @@
                     <h2>Note</h2>
                     <div class="modal-buttons">
                         <button class="icon-btn preview-btn" onclick="togglePreview()" title="Toggle Preview"><i class="fas fa-eye"></i></button>
+                        <button class="icon-btn copy-btn" id="view-copy-btn" title="Copy Note"><i class="fas fa-copy"></i></button>
                         <button class="icon-btn save-btn" onclick="saveNoteChanges()"><i class="fas fa-save"></i></button>
                         <button class="icon-btn delete-btn" onclick="deleteNote()"><i class="fas fa-trash"></i></button>
                         <button class="icon-btn cancel-btn" onclick="closeViewDialog()"><i class="fas fa-times"></i></button>
@@ -529,8 +530,22 @@
             preview.style.display = 'block';
             previewBtn.className = 'fas fa-edit';
             button.title = languages[currentLanguage].editMode;
-            
             modal.style.display = 'flex';
+
+            // Set up copy button to copy current visible content
+            const copyBtn = document.getElementById('view-copy-btn');
+            copyBtn.onclick = function(e) {
+                e.stopPropagation();
+                let copyContent;
+                if (isPreviewMode) {
+                    // Copy preview (rendered, but as plain text)
+                    copyContent = textarea.value;
+                } else {
+                    // Copy textarea content
+                    copyContent = textarea.value;
+                }
+                copyNoteContent(copyContent);
+            };
         }
 
         function closeViewDialog() {
