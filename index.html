@@ -498,7 +498,7 @@
             }
         }
 
-        async function openViewDialog(noteId, encryptedContent) {
+        function openViewDialog(noteId, encryptedContent) {
             currentNoteId = noteId;
             const modal = document.getElementById('view-dialog');
             const textarea = document.getElementById('view-note-content');
@@ -513,17 +513,7 @@
             
             // Default to preview mode for existing notes
             isPreviewMode = true;
-            
-            // Show loading state
-            preview.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;"><i class="fas fa-spinner fa-spin"></i> Loading previews...</div>';
-            preview.style.display = 'block';
-            textarea.style.display = 'none';
-            previewBtn.className = 'fas fa-edit';
-            button.title = languages[currentLanguage].editMode;
-            modal.style.display = 'flex';
-            
-            // Render with link previews asynchronously
-            preview.innerHTML = await renderPlainTextWithLinks(content);
+            preview.innerHTML = renderPlainTextWithLinks(escapeHtml(content));
             
             // Make all links open in new tab for security and add inline preview
             const links = preview.querySelectorAll('a');
@@ -531,6 +521,12 @@
                 link.setAttribute('target', '_blank');
                 link.setAttribute('rel', 'noopener noreferrer');
             });
+            
+            textarea.style.display = 'none';
+            preview.style.display = 'block';
+            previewBtn.className = 'fas fa-edit';
+            button.title = languages[currentLanguage].editMode;
+            modal.style.display = 'flex';
 
             // Set up copy button to copy current visible content
             const copyBtn = document.getElementById('view-copy-btn');
@@ -651,199 +647,19 @@
                 });
         }
 
-        // Link preview cache management
-        const PREVIEW_CACHE_KEY = 'linkPreviewCache';
-        const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-        function getCachedPreview(url) {
-            try {
-                const cache = JSON.parse(localStorage.getItem(PREVIEW_CACHE_KEY) || '{}');
-                const cached = cache[url];
-                if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-                    return cached.data;
-                }
-            } catch (e) {
-                console.error('Cache read error:', e);
-            }
-            return null;
-        }
-
-        function setCachedPreview(url, data) {
-            try {
-                const cache = JSON.parse(localStorage.getItem(PREVIEW_CACHE_KEY) || '{}');
-                cache[url] = { data, timestamp: Date.now() };
-                // Limit cache size to 100 entries
-                const entries = Object.entries(cache);
-                if (entries.length > 100) {
-                    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-                    const newCache = Object.fromEntries(entries.slice(-100));
-                    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(newCache));
-                } else {
-                    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(cache));
-                }
-            } catch (e) {
-                console.error('Cache write error:', e);
-            }
-        }
-
-        // Fetch link preview metadata
-        async function fetchLinkPreview(url) {
-            // Check cache first
-            const cached = getCachedPreview(url);
-            if (cached) {
-                return cached;
-            }
-
-            try {
-                // Use multiple fallback methods
-                let previewData = null;
-
-                // Method 1: Try with microlink.io (free tier)
-                try {
-                    const microlinkUrl = `https://api.microlink.io?url=${encodeURIComponent(url)}`;
-                    const response = await fetch(microlinkUrl);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.status === 'success') {
-                            previewData = {
-                                title: data.data.title,
-                                description: data.data.description,
-                                image: data.data.image?.url || data.data.logo?.url,
-                                url: url
-                            };
-                        }
-                    }
-                } catch (e) {
-                    console.log('Microlink failed, trying next method');
-                }
-
-                // Method 2: Try with jsonlink.io (free alternative)
-                if (!previewData) {
-                    try {
-                        const jsonlinkUrl = `https://jsonlink.io/api/extract?url=${encodeURIComponent(url)}`;
-                        const response = await fetch(jsonlinkUrl);
-                        if (response.ok) {
-                            const data = await response.json();
-                            previewData = {
-                                title: data.title,
-                                description: data.description,
-                                image: data.images?.[0] || data.favicon,
-                                url: url
-                            };
-                        }
-                    } catch (e) {
-                        console.log('Jsonlink failed');
-                    }
-                }
-
-                // If we got data, cache it
-                if (previewData && previewData.title) {
-                    setCachedPreview(url, previewData);
-                    return previewData;
-                }
-
-                // Return null if all methods failed
-                return null;
-            } catch (error) {
-                console.error('Preview fetch failed:', error);
-                return null;
-            }
-        }
-
-        // Create link preview HTML element
-        function createLinkPreviewElement(previewData) {
-            if (!previewData) return null;
-            
-            const domain = new URL(previewData.url).hostname;
-            const title = previewData.title || domain;
-            const description = previewData.description || '';
-            const image = previewData.image;
-
-            let html = `<a href="${escapeHtml(previewData.url)}" class="inline-link-preview" target="_blank" rel="noopener noreferrer">`;
-            html += '<div class="preview-content">';
-            
-            if (image) {
-                html += `<img src="${escapeHtml(image)}" class="preview-thumbnail" alt="Preview" onerror="this.style.display='none'">`;
-            } else {
-                html += '<div class="preview-thumbnail-placeholder"><i class="fas fa-link"></i></div>';
-            }
-            
-            html += '<div class="preview-text">';
-            html += `<div class="preview-title">${escapeHtml(title)}</div>`;
-            if (description) {
-                html += `<div class="preview-description">${escapeHtml(description.substring(0, 150))}${description.length > 150 ? '...' : ''}</div>`;
-            }
-            html += `<div class="preview-domain">${escapeHtml(domain)}</div>`;
-            html += '</div></div></a>';
-            
-            return html;
-        }
-
-        // Enhanced renderPlainTextWithLinks function with preview support
-        async function renderPlainTextWithLinks(text) {
+        function renderPlainTextWithLinks(text) {
             if (!text) return '';
-            
+            // Replace URLs with clickable links
             const urlRegex = /(https?:\/\/[\w\-._~:/?#[\]@!$&'()*+,;=%]+)|(www\.[\w\-._~:/?#[\]@!$&'()*+,;=%]+)/gi;
-            const urls = [];
-            let match;
-            
-            // Extract all URLs
-            const textCopy = text;
-            while ((match = urlRegex.exec(textCopy)) !== null) {
-                let url = match[0];
-                if (!url.startsWith('http')) url = 'http://' + url;
-                urls.push({ 
-                    original: match[0], 
-                    normalized: url, 
-                    index: match.index,
-                    length: match[0].length
-                });
-            }
-            
-            if (urls.length === 0) {
-                return escapeHtml(text);
-            }
-
-            // Fetch all previews concurrently (with timeout)
-            const previewPromises = urls.map(u => 
-                Promise.race([
-                    fetchLinkPreview(u.normalized),
-                    new Promise(resolve => setTimeout(() => resolve(null), 3000)) // 3s timeout
-                ])
-            );
-            
-            const previews = await Promise.all(previewPromises);
-            
-            // Build result by replacing URLs with preview cards or links
-            let result = '';
-            let lastIndex = 0;
-            
-            for (let i = 0; i < urls.length; i++) {
-                const url = urls[i];
-                const preview = previews[i];
-                
-                // Add text before URL
-                result += escapeHtml(text.substring(lastIndex, url.index));
-                
-                // Add preview card or fallback link
-                if (preview && preview.title) {
-                    result += createLinkPreviewElement(preview);
-                } else {
-                    // Fallback to simple link
-                    result += `<a href="${escapeHtml(url.normalized)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url.original)}</a>`;
-                }
-                
-                lastIndex = url.index + url.length;
-            }
-            
-            // Add remaining text
-            result += escapeHtml(text.substring(lastIndex));
-            
-            return result;
+            return text.replace(urlRegex, function(url) {
+                let href = url;
+                if (!href.startsWith('http')) href = 'http://' + href;
+                return '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+            });
         }
 
         // Update togglePreview to use plain text with links
-        async function togglePreview() {
+        function togglePreview() {
             const textarea = document.getElementById('view-note-content');
             const preview = document.getElementById('view-note-preview');
             const previewBtn = document.querySelector('.preview-btn i');
@@ -855,15 +671,10 @@
                 button.title = languages[currentLanguage].previewMode;
                 isPreviewMode = false;
             } else {
-                // Show loading state
-                preview.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;"><i class="fas fa-spinner fa-spin"></i> Loading previews...</div>';
-                preview.style.display = 'block';
-                textarea.style.display = 'none';
-                
-                // Render with link previews asynchronously
                 const content = textarea.value;
-                preview.innerHTML = await renderPlainTextWithLinks(content);
-                
+                preview.innerHTML = renderPlainTextWithLinks(escapeHtml(content));
+                textarea.style.display = 'none';
+                preview.style.display = 'block';
                 previewBtn.className = 'fas fa-edit';
                 button.title = languages[currentLanguage].editMode;
                 isPreviewMode = true;
