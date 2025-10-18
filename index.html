@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
     <title>Encrypted Note</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Encrypted Note - 安全的加密筆記應用">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -26,7 +29,7 @@
 <body>
     <div class="app-wrapper">
         <!-- Language Toggle Button -->
-        <div class="button-container">
+        <div class="button-container d-flex flex-wrap gap-2 gap-md-3 p-2 p-md-3">
             <button id="language-toggle" class="styled-button" onclick="toggleLanguage()">
                 <i class="fas fa-globe"></i>
             </button>
@@ -108,6 +111,20 @@
             </div>
         </div>
 
+        <!-- Confirm Delete Dialog -->
+        <div id="confirm-delete-dialog" class="modal">
+            <div class="modal-content confirm-dialog">
+                <div class="confirm-message">
+                    <p id="confirm-delete-message">確認刪除這則貼文嗎？</p>
+                    <small id="confirm-delete-warning">此操作無法復原</small>
+                </div>
+                <div class="confirm-buttons">
+                    <button class="confirm-btn" onclick="confirmDelete()"><i class="fas fa-check"></i> <span id="confirm-delete-button-text">確認刪除</span></button>
+                    <button class="cancel-btn" onclick="closeConfirmDialog()"><i class="fas fa-times"></i> <span id="cancel-button-text">取消</span></button>
+                </div>
+            </div>
+        </div>
+
         <!-- Toast Container -->
         <div id="toast" class="toast"></div>
     </div>
@@ -127,7 +144,12 @@
                 noteCopied: "Note copied to clipboard",
                 copyFailed: "Failed to copy",
                 previewMode: "Preview Mode",
-                editMode: "Edit Mode"
+                editMode: "Edit Mode",
+                confirmDeleteTitle: "Confirm Delete",
+                confirmDeleteMessage: "Are you sure you want to delete this note?",
+                confirmDeleteWarning: "This action cannot be undone",
+                confirmDeleteButton: "Delete",
+                cancelButton: "Cancel"
             },
             zh: {
                 title: "加密筆記",
@@ -142,7 +164,12 @@
                 noteCopied: "已複製到剪貼簿",
                 copyFailed: "複製失敗",
                 previewMode: "預覽模式",
-                editMode: "編輯模式"
+                editMode: "編輯模式",
+                confirmDeleteTitle: "確認刪除",
+                confirmDeleteMessage: "確認刪除這則貼文嗎？",
+                confirmDeleteWarning: "此操作無法復原",
+                confirmDeleteButton: "確認刪除",
+                cancelButton: "取消"
             }
         };
 
@@ -166,6 +193,12 @@
             document.getElementById('password-input').placeholder = languages[currentLanguage].passwordPlaceholder;
             document.getElementById('note-content').placeholder = languages[currentLanguage].notePlaceholder;
             document.querySelector('#create-dialog .modal-header h2').textContent = languages[currentLanguage].newNoteTitle;
+            
+            // Update confirm delete dialog texts
+            document.getElementById('confirm-delete-message').textContent = languages[currentLanguage].confirmDeleteMessage;
+            document.getElementById('confirm-delete-warning').textContent = languages[currentLanguage].confirmDeleteWarning;
+            document.getElementById('confirm-delete-button-text').textContent = languages[currentLanguage].confirmDeleteButton;
+            document.getElementById('cancel-button-text').textContent = languages[currentLanguage].cancelButton;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -551,16 +584,29 @@
 
         function deleteNote() {
             if (!currentNoteId) return;
+            // 顯示確認對話框而不是直接刪除
+            const confirmDialog = document.getElementById('confirm-delete-dialog');
+            confirmDialog.style.display = 'flex';
+        }
+
+        function confirmDelete() {
+            if (!currentNoteId) return;
             const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
             notesRef.remove()
                 .then(() => {
                     showToast("Note deleted successfully");
+                    closeConfirmDialog();
                     closeViewDialog();
                 })
                 .catch(error => {
                     console.error("Error deleting note:", error);
                     showToast("Failed to delete note: " + error.message, 'error');
                 });
+        }
+
+        function closeConfirmDialog() {
+            const confirmDialog = document.getElementById('confirm-delete-dialog');
+            confirmDialog.style.display = 'none';
         }
 
         function showDialogOverCharLimit(count) {
@@ -763,5 +809,7 @@
                 .replace(/'/g, "&#039;");
         }
     </script>
+    <!-- Bootstrap 5 JS Bundle (includes Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
