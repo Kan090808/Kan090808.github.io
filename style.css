@@ -303,6 +303,85 @@ html, body {
     overflow-y: auto;
 }
 
+.attachments-section {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.attachments-label {
+    font-size: 0.9rem;
+    color: #a0a0b0;
+}
+
+.attachments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.attachment-item,
+.attachment-row {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    color: #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.attachment-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.attachment-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.attachment-empty {
+    color: #888;
+    font-size: 0.85rem;
+}
+
+.attachment-pending {
+    color: #ff007a;
+    font-size: 0.85rem;
+}
+
+.attachment-preview-content {
+    max-width: 900px;
+    width: 90%;
+}
+
+.attachment-preview-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-height: 70vh;
+    overflow: hidden;
+}
+
+#attachment-preview-image,
+#attachment-preview-video {
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: 10px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;

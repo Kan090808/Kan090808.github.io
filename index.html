@@ -93,6 +93,11 @@
                     </div>
                 </div>
                 <textarea id="note-content" placeholder="Write your note here (max 5000 characters)..." oninput="adjustTextareaHeight(this)" enterkeyhint="done"></textarea>
+                <div class="attachments-section">
+                    <label class="attachments-label" for="create-attachment-input">Add attachments</label>
+                    <input type="file" id="create-attachment-input" multiple>
+                    <div id="create-attachments-list" class="attachments-list"></div>
+                </div>
             </div>
         </div>
 
@@ -111,6 +116,11 @@
                 </div>
                 <textarea id="view-note-content" enterkeyhint="done"></textarea>
                 <div id="view-note-preview" class="note-preview" style="display: none;"></div>
+                <div id="view-attachments-section" class="attachments-section">
+                    <label class="attachments-label" for="view-attachment-input">Attachments</label>
+                    <input type="file" id="view-attachment-input" multiple>
+                    <div id="view-attachments-list" class="attachments-list"></div>
+                </div>
             </div>
         </div>
 
@@ -124,6 +134,22 @@
                 <div class="confirm-buttons">
                     <button class="confirm-btn" onclick="confirmDelete()"><i class="fas fa-check"></i> <span id="confirm-delete-button-text">確認刪除</span></button>
                     <button class="cancel-btn" onclick="closeConfirmDialog()"><i class="fas fa-times"></i> <span id="cancel-button-text">取消</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attachment Preview Dialog -->
+        <div id="attachment-preview-dialog" class="modal">
+            <div class="modal-content attachment-preview-content">
+                <div class="modal-header">
+                    <h2 id="attachment-preview-title">Attachment</h2>
+                    <div class="modal-buttons">
+                        <button class="icon-btn cancel-btn" onclick="closeAttachmentPreview()"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+                <div class="attachment-preview-body">
+                    <img id="attachment-preview-image" alt="Attachment Preview" style="display:none;" />
+                    <video id="attachment-preview-video" controls style="display:none;"></video>
                 </div>
             </div>
         </div>
@@ -227,6 +253,8 @@
         let driveInitPromise = null; // 初始化 Promise，用于等待同步
         let currentNotes = {};      // 内存中的笔记缓存
         let pendingSaveCount = 0;   // 正在等待上傳的操作數
+        let createAttachments = []; // 新建笔记的附件
+        let pendingAttachmentUploads = {}; // noteId -> File[]
         let userPassword = null;
         let currentNoteId = null;
         const MAX_NOTES = 50;
@@ -483,28 +511,82 @@
         }
 
         let isSyncing = false;
+
+        function sanitizeNoteForSave(note) {
+            const { isPending, attachments, ...rest } = note;
+            const clean = { ...rest };
+            if (attachments && attachments.length) {
+                clean.attachments = attachments
+                    .filter(att => att.driveFileId)
+                    .map(att => ({
+                        name: att.name,
+                        mime: att.mime,
+                        size: att.size,
+                        driveFileId: att.driveFileId
+                    }));
+            }
+            return clean;
+        }
+
+        async function uploadPendingAttachments() {
+            const noteIds = Object.keys(pendingAttachmentUploads);
+            if (noteIds.length === 0) return;
+
+            for (const noteId of noteIds) {
+                const files = pendingAttachmentUploads[noteId] || [];
+                if (!files.length || !currentNotes[noteId]) {
+                    delete pendingAttachmentUploads[noteId];
+                    continue;
+                }
+
+                const remaining = [];
+                for (const file of files) {
+                    try {
+                        const driveFileId = await uploadEncryptedAttachment(file);
+                        const attachments = currentNotes[noteId].attachments || [];
+                        const target = attachments.find(att => att.pending && att.name === file.name && att.size === file.size);
+                        if (target) {
+                            target.driveFileId = driveFileId;
+                            target.pending = false;
+                        }
+                    } catch (err) {
+                        console.error('Attachment upload failed:', err);
+                        remaining.push(file);
+                    }
+                }
+
+                if (remaining.length > 0) {
+                    pendingAttachmentUploads[noteId] = remaining;
+                } else {
+                    delete pendingAttachmentUploads[noteId];
+                }
+            }
+        }
         async function syncWithDrive() {
-            if (isSyncing || !driveNotesFile) return;
-            if (pendingSaveCount === 0) return;
+            if (isSyncing) return;
+            if (pendingSaveCount === 0 && Object.keys(pendingAttachmentUploads).length === 0) return;
             
             isSyncing = true;
             try {
+                await ensureDriveInitialized();
+                await uploadPendingAttachments();
+
                 // Create a clean copy of notes for saving (remove local-only properties like isPending)
                 const notesToSave = {};
                 for (const [id, note] of Object.entries(currentNotes)) {
-                    const { isPending, ...noteData } = note;
-                    notesToSave[id] = noteData;
+                    notesToSave[id] = sanitizeNoteForSave(note);
                 }
                 
                 await saveNotesToDrive(notesToSave);
                 
                 // Success: remove pending flag from notes that were part of this sync
                 for (const [id, note] of Object.entries(currentNotes)) {
-                    if (note.isPending) {
+                    const hasPendingAttachment = (note.attachments || []).some(att => att.pending);
+                    if (note.isPending && !hasPendingAttachment) {
                         delete note.isPending;
                     }
                 }
-                pendingSaveCount = 0;
+                pendingSaveCount = Object.keys(pendingAttachmentUploads).length > 0 ? 1 : 0;
                 console.log('Background sync successful');
             } catch (err) {
                 console.error('Background sync failed:', err);
@@ -512,6 +594,9 @@
             } finally {
                 isSyncing = false;
                 loadNotes(); // Refresh UI
+                if (currentNoteId) {
+                    renderViewAttachments(currentNoteId);
+                }
             }
         }
 
@@ -584,8 +669,18 @@
                         }
                     }
                     
+                    try {
+                        // 確保在登入動作中請求 Drive 權限（避免彈窗被擋）
+                        await requestDriveAccess();
+                        await initDriveNotes();
+                        loadNotes();
+                    } catch (err) {
+                        console.error('Drive access during login failed:', err);
+                        ensureSyncButton();
+                    }
+
                     if (forceRefresh) {
-                        // 重新初始化 Drive，现在应该有权限了
+                        // 重新初始化 Drive
                         initDriveNotes().then(() => loadNotes());
                     }
                 })
@@ -719,6 +814,269 @@
             }
         }
 
+        function arrayBufferToWordArray(buffer) {
+            const u8 = new Uint8Array(buffer);
+            const words = [];
+            for (let i = 0; i < u8.length; i++) {
+                words[i >>> 2] |= u8[i] << (24 - (i % 4) * 8);
+            }
+            return CryptoJS.lib.WordArray.create(words, u8.length);
+        }
+
+        function wordArrayToUint8Array(wordArray) {
+            const { words, sigBytes } = wordArray;
+            const u8 = new Uint8Array(sigBytes);
+            for (let i = 0; i < sigBytes; i++) {
+                u8[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
+            }
+            return u8;
+        }
+
+        async function encryptFile(file) {
+            if (!userPassword) throw new Error("No password set");
+            const buffer = await file.arrayBuffer();
+            const wordArray = arrayBufferToWordArray(buffer);
+            const iv = CryptoJS.lib.WordArray.random(16);
+            const salt = CryptoJS.lib.WordArray.random(128/8);
+            const key = CryptoJS.PBKDF2(userPassword, salt, { keySize: 256/32 });
+            const encrypted = CryptoJS.AES.encrypt(wordArray, key, { iv: iv });
+            return iv.toString() + ":" + salt.toString() + ":" + encrypted.toString();
+        }
+
+        function decryptFileToBlob(encryptedString, mimeType) {
+            const parts = encryptedString.split(":");
+            if (parts.length !== 3) throw new Error("Invalid encrypted file format");
+            const iv = CryptoJS.enc.Hex.parse(parts[0]);
+            const salt = CryptoJS.enc.Hex.parse(parts[1]);
+            const ciphertext = parts[2];
+            const key = CryptoJS.PBKDF2(userPassword, salt, { keySize: 256/32 });
+            const decrypted = CryptoJS.AES.decrypt(ciphertext, key, { iv: iv });
+            const u8 = wordArrayToUint8Array(decrypted);
+            return new Blob([u8], { type: mimeType || 'application/octet-stream' });
+        }
+
+        function renderCreateAttachmentList() {
+            const list = document.getElementById('create-attachments-list');
+            list.innerHTML = '';
+            if (!createAttachments.length) return;
+
+            createAttachments.forEach((file) => {
+                const item = document.createElement('div');
+                item.className = 'attachment-item';
+                item.textContent = `${file.name} (${Math.round(file.size / 1024)} KB)`;
+                list.appendChild(item);
+            });
+        }
+
+        function handleCreateAttachmentChange(event) {
+            createAttachments = Array.from(event.target.files || []);
+            renderCreateAttachmentList();
+        }
+
+        function renderViewAttachments(noteId) {
+            const list = document.getElementById('view-attachments-list');
+            list.innerHTML = '';
+            const attachments = (currentNotes[noteId] && currentNotes[noteId].attachments) || [];
+            if (attachments.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'attachment-empty';
+                empty.textContent = 'No attachments';
+                list.appendChild(empty);
+                return;
+            }
+
+            attachments.forEach((att) => {
+                const row = document.createElement('div');
+                row.className = 'attachment-row';
+
+                const name = document.createElement('span');
+                name.className = 'attachment-name';
+                name.textContent = att.name || 'attachment';
+
+                const actions = document.createElement('div');
+                actions.className = 'attachment-actions';
+
+                if (att.pending) {
+                    const pending = document.createElement('span');
+                    pending.className = 'attachment-pending';
+                    pending.innerHTML = '<i class="fas fa-sync fa-spin"></i> Uploading';
+                    actions.appendChild(pending);
+                } else if (att.driveFileId) {
+                    const browseBtn = document.createElement('button');
+                    browseBtn.className = 'icon-btn preview-btn';
+                    browseBtn.title = 'Browse';
+                    browseBtn.innerHTML = '<i class="fas fa-eye"></i>';
+                    browseBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        browseAttachment(att);
+                    };
+
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'icon-btn copy-btn';
+                    downloadBtn.title = 'Download';
+                    downloadBtn.innerHTML = '<i class="fas fa-download"></i>';
+                    downloadBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        downloadAttachmentToDevice(att);
+                    };
+
+                    actions.appendChild(browseBtn);
+                    actions.appendChild(downloadBtn);
+                }
+
+                row.appendChild(name);
+                row.appendChild(actions);
+                list.appendChild(row);
+            });
+        }
+
+        function updateAttachmentSection() {
+            const input = document.getElementById('view-attachment-input');
+            if (!input) return;
+            input.style.display = isPreviewMode ? 'none' : 'block';
+        }
+
+        function handleViewAttachmentChange(event) {
+            const files = Array.from(event.target.files || []);
+            if (!currentNoteId || files.length === 0) return;
+            const note = currentNotes[currentNoteId];
+            if (!note) return;
+            if (!note.attachments) note.attachments = [];
+
+            files.forEach((file) => {
+                note.attachments.push({
+                    name: file.name,
+                    mime: file.type || 'application/octet-stream',
+                    size: file.size,
+                    pending: true
+                });
+            });
+
+            pendingAttachmentUploads[currentNoteId] = (pendingAttachmentUploads[currentNoteId] || []).concat(files);
+            event.target.value = '';
+            renderViewAttachments(currentNoteId);
+            loadNotes();
+            pendingSaveCount++;
+            syncWithDrive();
+        }
+
+        async function uploadEncryptedAttachment(file) {
+            await ensureDriveInitialized();
+            const encryptedString = await encryptFile(file);
+
+            const metadataResponse = await gapi.client.drive.files.create({
+                resource: {
+                    name: file.name,
+                    mimeType: 'application/octet-stream',
+                    appProperties: { type: 'encrypted-attachment', originalMime: file.type || 'application/octet-stream' }
+                }
+            });
+            const fileId = metadataResponse.result.id;
+
+            await gapi.client.request({
+                path: '/upload/drive/v3/files/' + fileId,
+                method: 'PATCH',
+                params: { uploadType: 'media' },
+                body: encryptedString
+            });
+
+            return fileId;
+        }
+
+        async function downloadAttachment(att) {
+            if (!att.driveFileId) return;
+            const response = await gapi.client.drive.files.get({
+                fileId: att.driveFileId,
+                alt: 'media'
+            });
+            let data = response.body || response.result;
+            if (response.result && typeof response.result === 'object') {
+                data = JSON.stringify(response.result);
+            }
+            if (typeof data !== 'string') data = String(data);
+
+            const blob = decryptFileToBlob(data, att.mime);
+            return blob;
+        }
+
+        async function browseAttachment(att) {
+            try {
+                const blob = await downloadAttachment(att);
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                const isImage = att.mime && att.mime.startsWith('image/');
+                const isVideo = att.mime && att.mime.startsWith('video/');
+
+                if (isImage || isVideo) {
+                    openAttachmentPreview(att, url, isImage ? 'image' : 'video');
+                } else {
+                    URL.revokeObjectURL(url);
+                    showToast('Preview not supported. Use download.', 'error');
+                }
+            } catch (err) {
+                console.error('Attachment preview failed:', err);
+                showToast('Failed to preview attachment', 'error');
+            }
+        }
+
+        async function downloadAttachmentToDevice(att) {
+            try {
+                const blob = await downloadAttachment(att);
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = att.name || 'attachment';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error('Attachment download failed:', err);
+                showToast('Failed to download attachment', 'error');
+            }
+        }
+
+        function openAttachmentPreview(att, url, type) {
+            const dialog = document.getElementById('attachment-preview-dialog');
+            const title = document.getElementById('attachment-preview-title');
+            const img = document.getElementById('attachment-preview-image');
+            const video = document.getElementById('attachment-preview-video');
+
+            title.textContent = att.name || 'Attachment';
+            img.style.display = 'none';
+            video.style.display = 'none';
+
+            if (type === 'image') {
+                img.src = url;
+                img.style.display = 'block';
+            } else {
+                video.src = url;
+                video.style.display = 'block';
+                video.play().catch(() => {});
+            }
+            dialog.dataset.blobUrl = url;
+            dialog.style.display = 'flex';
+        }
+
+        function closeAttachmentPreview() {
+            const dialog = document.getElementById('attachment-preview-dialog');
+            const img = document.getElementById('attachment-preview-image');
+            const video = document.getElementById('attachment-preview-video');
+            if (video) {
+                video.pause();
+                video.src = '';
+            }
+            if (img) img.src = '';
+
+            const url = dialog.dataset.blobUrl;
+            if (url) {
+                URL.revokeObjectURL(url);
+                dialog.dataset.blobUrl = '';
+            }
+            dialog.style.display = 'none';
+        }
+
         async function loadNotes() {
             try {
                 if (Object.keys(currentNotes).length === 0 && !isSyncing) {
@@ -757,7 +1115,8 @@
                 // Create DOM elements for sorted notes
                 notesArray.forEach(({id, note, decryptedContent}) => {
                     const noteElement = document.createElement('div');
-                    noteElement.className = 'note-item' + (note.isPending ? ' pending-sync' : '');
+                    const hasPendingAttachment = (note.attachments || []).some(att => att.pending);
+                    noteElement.className = 'note-item' + ((note.isPending || hasPendingAttachment) ? ' pending-sync' : '');
                     noteElement.onclick = () => openViewDialog(id, note.content);
                     
                     const noteContent = document.createElement('span');
@@ -849,13 +1208,29 @@
                     content: encryptedContent,
                     timestamp: new Date().toISOString(),
                     userId: auth.currentUser.uid,
-                    isPending: true // Flag for background sync indicator
+                    isPending: true, // Flag for background sync indicator
+                    attachments: createAttachments.map(file => ({
+                        name: file.name,
+                        mime: file.type || 'application/octet-stream',
+                        size: file.size,
+                        pending: true
+                    }))
                 };
+
+                if (createAttachments.length > 0) {
+                    pendingAttachmentUploads[noteId] = createAttachments.slice();
+                }
                 
                 // 2. Refresh UI immediately
                 loadNotes();
                 closeCreateDialog();
                 showToast("Note saving in background...");
+
+                // Reset attachment input for next note
+                createAttachments = [];
+                const createInput = document.getElementById('create-attachment-input');
+                if (createInput) createInput.value = '';
+                renderCreateAttachmentList();
                 
                 // 3. Trigger background sync
                 pendingSaveCount++;
@@ -895,6 +1270,8 @@
             previewBtn.className = 'fas fa-edit';
             button.title = languages[currentLanguage].editMode;
             updateViewDialogButtons();
+            renderViewAttachments(noteId);
+            updateAttachmentSection();
             modal.style.display = 'flex';
 
             // Set up copy button to copy current visible content
@@ -916,6 +1293,8 @@
         function closeViewDialog() {
             document.getElementById('view-dialog').style.display = 'none';
             currentNoteId = null;
+            const viewInput = document.getElementById('view-attachment-input');
+            if (viewInput) viewInput.value = '';
         }
 
         function deleteNote() {
@@ -996,11 +1375,13 @@
                 const encryptedContent = encryptNote(content);
                 
                 // 1. Update local cache immediately
+                const existing = currentNotes[currentNoteId] || {};
                 currentNotes[currentNoteId] = {
                     content: encryptedContent,
                     timestamp: new Date().toISOString(),
                     userId: auth.currentUser.uid,
-                    isPending: true
+                    isPending: true,
+                    attachments: existing.attachments || []
                 };
                 
                 // 2. Refresh UI immediately
@@ -1073,6 +1454,7 @@
                 isPreviewMode = true;
             }
             updateViewDialogButtons();
+            updateAttachmentSection();
         }
 
         function updateViewDialogButtons() {
@@ -1109,7 +1491,7 @@
         }
 
         function getOpenDialog() {
-            const dialogs = ['confirm-delete-dialog', 'view-dialog', 'create-dialog', 'password-dialog'];
+            const dialogs = ['attachment-preview-dialog', 'confirm-delete-dialog', 'view-dialog', 'create-dialog', 'password-dialog'];
             for (const dialogId of dialogs) {
                 const dialog = document.getElementById(dialogId);
                 if (dialog.style.display === 'flex') {
@@ -1127,6 +1509,9 @@
             if (event.key === 'Escape') {
                 // Handle ESC key
                 switch (openDialog) {
+                    case 'attachment-preview-dialog':
+                        closeAttachmentPreview();
+                        break;
                     case 'password-dialog':
                         closePasswordDialog();
                         break;
@@ -1172,6 +1557,16 @@
                 }
             }
         });
+
+        // Attachment input handlers
+        const createAttachmentInput = document.getElementById('create-attachment-input');
+        if (createAttachmentInput) {
+            createAttachmentInput.addEventListener('change', handleCreateAttachmentChange);
+        }
+        const viewAttachmentInput = document.getElementById('view-attachment-input');
+        if (viewAttachmentInput) {
+            viewAttachmentInput.addEventListener('change', handleViewAttachmentChange);
+        }
 
         function escapeHtml(text) {
             if (!text) return '';
