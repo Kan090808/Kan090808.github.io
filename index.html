@@ -10,8 +10,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <!-- Google Identity Services (新库) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google API Client Library -->
+    <script src="https://apis.google.com/js/api.js"></script>
     <!-- CryptoJS for AES encryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script>
@@ -99,11 +102,11 @@
                 <div class="modal-header">
                     <h2>Note</h2>
                     <div class="modal-buttons">
-                        <button class="icon-btn preview-btn" onclick="togglePreview()" title="Toggle Preview"><i class="fas fa-eye"></i></button>
+                        <button class="icon-btn preview-btn" id="view-edit-toggle-btn" onclick="togglePreview()" title="Toggle Preview"><i class="fas fa-eye"></i></button>
                         <button class="icon-btn copy-btn" id="view-copy-btn" title="Copy Note"><i class="fas fa-copy"></i></button>
-                        <button class="icon-btn save-btn" onclick="saveNoteChanges()"><i class="fas fa-save"></i></button>
-                        <button class="icon-btn delete-btn" onclick="deleteNote()"><i class="fas fa-trash"></i></button>
-                        <button class="icon-btn cancel-btn" onclick="closeViewDialog()"><i class="fas fa-times"></i></button>
+                        <button class="icon-btn save-btn" id="view-save-btn" onclick="saveNoteChanges()"><i class="fas fa-save"></i></button>
+                        <button class="icon-btn delete-btn" id="view-delete-btn" onclick="deleteNote()"><i class="fas fa-trash"></i></button>
+                        <button class="icon-btn cancel-btn" id="view-close-btn" onclick="closeViewDialog()"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
                 <textarea id="view-note-content" enterkeyhint="done"></textarea>
@@ -211,46 +214,337 @@
 
         firebase.initializeApp(getFirebaseConfig());
         const auth = firebase.auth();
-        const database = firebase.database();
         const provider = new firebase.auth.GoogleAuthProvider();
+        
+        // Add Google Drive scopes to provider
+        provider.addScope('https://www.googleapis.com/auth/drive.file');
+        provider.addScope('https://www.googleapis.com/auth/drive.appdata');
+        
+        // Google Drive API variables
+        let gapiLoaded = false;
+        let driveNotesFile = null;
+        let driveAccessToken = null; // 存储 Drive 访问令牌
+        let driveInitPromise = null; // 初始化 Promise，用于等待同步
+        let currentNotes = {};      // 内存中的笔记缓存
+        let pendingSaveCount = 0;   // 正在等待上傳的操作數
         let userPassword = null;
         let currentNoteId = null;
         const MAX_NOTES = 50;
         const MAX_CHARS = 5000;
+        const NOTES_FILENAME = 'encrypted-notes.json';
 
-        let isWhitelisted = false;
+        let isWhitelisted = true; // No whitelist in Drive version
         let currentUserId = null;
 
-        function showDialogNotWhitelisted(userId) {
-            // Create modal if not exists
-            let modal = document.getElementById('not-whitelist-dialog');
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = 'not-whitelist-dialog';
-                modal.className = 'modal';
-                modal.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2>Not in Whitelist</h2>
-                        <button class="icon-btn cancel-btn" onclick="closeNotWhitelistDialog()"><i class="fas fa-times"></i></button>
-                    </div>
-                    <div style="margin: 16px 0;">
-                        <p>You are not in the whitelist and cannot create notes.<br>Your UserID: <span id="not-whitelist-uid" style="font-family:monospace;"></span></p>
-                        <button id="contact-dev-btn" class="styled-button" style="margin-top:12px;">Contact Developer</button>
-                    </div>
-                </div>`;
-                document.body.appendChild(modal);
-                document.getElementById('contact-dev-btn').onclick = function() {
-                    const mailto = `mailto:kanjingterng@gmail.com?subject=Whitelist%20Request&body=Please%20add%20me%20to%20the%20whitelist.%20My%20UserID%20is:%20${encodeURIComponent(currentUserId)}`;
-                    window.open(mailto, '_blank');
+        // 使用 Google Identity Services 请求 Drive 权限
+        function requestDriveAccess() {
+            return new Promise((resolve, reject) => {
+                const config = getGoogleOAuthConfig();
+                
+                // 使用 Google Identity Services (GIS) 获取 Drive 令牌
+                const tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: config.clientId,
+                    scope: config.scopes.join(' '),
+                    callback: (tokenResponse) => {
+                        if (tokenResponse.error) {
+                            console.error('GIS Error:', tokenResponse.error, tokenResponse.error_description);
+                            reject(tokenResponse);
+                            return;
+                        }
+                        if (tokenResponse.access_token) {
+                            driveAccessToken = tokenResponse.access_token;
+                            // 保存到会话，这样刷新后可能还能用一段时间（虽然令牌会过期）
+                            sessionStorage.setItem('drive_token', driveAccessToken);
+                            console.log('Got Drive access token via GIS');
+                            
+                            // 设置 gapi.client 的令牌
+                            if (gapi.client && gapi.client.setToken) {
+                                gapi.client.setToken({
+                                    access_token: tokenResponse.access_token
+                                });
+                            }
+                            resolve(tokenResponse.access_token);
+                        } else {
+                            reject(new Error('No access token received'));
+                        }
+                    },
+                    error_callback: (error) => {
+                        console.error('Error getting Drive access:', error);
+                        reject(error);
+                    }
+                });
+                
+                // 请求访问令牌
+                tokenClient.requestAccessToken();
+            });
+        }
+
+        // Initialize Google API Client for Drive
+        function initGoogleApi() {
+            if (gapiLoaded) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                gapi.load('client', async () => {
+                    try {
+                        // Load Drive API
+                        await gapi.client.load('drive', 'v3');
+                        gapiLoaded = true;
+                        resolve();
+                    } catch (err) {
+                        console.error('Failed to init Google API:', err);
+                        reject(err);
+                    }
+                });
+            });
+        }
+
+        // Check and load notes file from Google Drive
+        async function initDriveNotes() {
+            if (driveInitPromise) return driveInitPromise;
+            
+            driveInitPromise = (async () => {
+                try {
+                    // 初始化 gapi 客户端
+                    await initGoogleApi();
+                    
+                    // 获取当前用户
+                    const user = auth.currentUser;
+                    if (!user) {
+                        throw new Error('User not authenticated');
+                    }
+                    
+                    // 尝试从会话中恢复令牌
+                    if (!driveAccessToken) {
+                        driveAccessToken = sessionStorage.getItem('drive_token');
+                        if (driveAccessToken && gapi.client) {
+                            gapi.client.setToken({ access_token: driveAccessToken });
+                        }
+                    }
+                    
+                    // 如果还没有 Drive 访问令牌，请求它
+                    if (!driveAccessToken) {
+                        console.log('No Drive access token, requesting...');
+                        await requestDriveAccess();
+                    }
+                    
+                    console.log('Drive access token ready, attempting API call...');
+                    
+                    // 尝试查询 Drive 中的笔记文件
+                    try {
+                        const fileList = await gapi.client.drive.files.list({
+                            q: `name='${NOTES_FILENAME}' and trashed=false`,
+                            spaces: 'drive',
+                            pageSize: 1,
+                            fields: 'files(id, name)'
+                        });
+                        
+                        if (fileList.result.files && fileList.result.files.length > 0) {
+                            driveNotesFile = fileList.result.files[0];
+                            console.log('Found existing notes file:', driveNotesFile.id);
+                            return driveNotesFile;
+                        }
+                        
+                        // 没有找到现有文件，创建新的
+                        console.log('No existing notes file found, creating new one...');
+                        return await createDriveNotesFile();
+                        
+                    } catch (driveErr) {
+                        console.error('Drive API error:', driveErr);
+                        
+                        // 如果是 401 或 403，可能需要重新请求权限
+                        if (driveErr.status === 401 || driveErr.status === 403) {
+                            console.log('Drive access denied, re-requesting permissions...');
+                            driveAccessToken = null; // 清除旧令牌
+                            sessionStorage.removeItem('drive_token');
+                            await requestDriveAccess(); // 重新请求
+                            
+                            // 重试搜索
+                            const retryFileList = await gapi.client.drive.files.list({
+                                q: `name='${NOTES_FILENAME}' and trashed=false`,
+                                spaces: 'drive',
+                                pageSize: 1,
+                                fields: 'files(id, name)'
+                            });
+                            
+                            if (retryFileList.result.files && retryFileList.result.files.length > 0) {
+                                driveNotesFile = retryFileList.result.files[0];
+                                return driveNotesFile;
+                            } else {
+                                return await createDriveNotesFile();
+                            }
+                        } else {
+                            throw driveErr;
+                        }
+                    }
+                } catch (err) {
+                    driveInitPromise = null; // 失败时允许重试
+                    console.error('Error initializing Drive notes:', err);
+                    if (err.type === 'popup_failed_to_open' || (err.message && err.message.includes('popup'))) {
+                        showToast('Drive access blocked by browser. Please click "Sync" in menu.', 'error');
+                        ensureSyncButton();
+                    } else {
+                        showToast('Failed to initialize Google Drive access', 'error');
+                    }
+                    throw err;
+                }
+            })();
+            
+            return driveInitPromise;
+        }
+
+        function ensureSyncButton() {
+            if (document.getElementById('sync-btn')) return;
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                const syncBtn = document.createElement('button');
+                syncBtn.id = 'sync-btn';
+                syncBtn.textContent = 'Authorize Drive/Sync';
+                syncBtn.onclick = async () => {
+                    try {
+                        await requestDriveAccess();
+                        await initDriveNotes();
+                        loadNotes();
+                        syncBtn.remove();
+                    } catch (e) {
+                        console.error('Manual sync failed:', e);
+                    }
                 };
+                logoutBtn.parentNode.insertBefore(syncBtn, logoutBtn);
             }
-            document.getElementById('not-whitelist-uid').textContent = userId;
-            modal.style.display = 'flex';
+        }
+
+        async function ensureDriveInitialized() {
+            if (driveNotesFile) return driveNotesFile;
+            console.log('Ensuring Drive is initialized...');
+            return await initDriveNotes();
+        }
+
+        // Create new notes file in Google Drive
+        async function createDriveNotesFile() {
+            try {
+                // 1. Create metadata
+                const metadataResponse = await gapi.client.drive.files.create({
+                    resource: {
+                        name: NOTES_FILENAME,
+                        mimeType: 'application/json',
+                        appProperties: { type: 'encrypted-notes' }
+                    }
+                });
+                const fileId = metadataResponse.result.id;
+                
+                // 2. Upload content
+                await gapi.client.request({
+                    path: '/upload/drive/v3/files/' + fileId,
+                    method: 'PATCH',
+                    params: {
+                        uploadType: 'media'
+                    },
+                    body: JSON.stringify({ notes: {} })
+                });
+                
+                driveNotesFile = metadataResponse.result;
+                showToast('Created encrypted notes file in Google Drive');
+                return driveNotesFile;
+            } catch (err) {
+                console.error('Error creating notes file:', err);
+                showToast('Failed to create notes file', 'error');
+                throw err;
+            }
+        }
+
+        // Load notes from Google Drive
+        async function loadNotesFromDrive() {
+            await ensureDriveInitialized();
+            try {
+                const response = await gapi.client.drive.files.get({
+                    fileId: driveNotesFile.id,
+                    alt: 'media'
+                });
+                
+                let data;
+                if (response.result) {
+                    data = response.result;
+                } else if (response.body) {
+                    data = JSON.parse(response.body);
+                } else {
+                    return {};
+                }
+                
+                // If it's still a string (sometimes gapi doesn't parse it despite mimeType)
+                if (typeof data === 'string') {
+                    data = JSON.parse(data);
+                }
+                
+                currentNotes = data.notes || {};
+                return currentNotes;
+            } catch (err) {
+                console.error('Error loading notes from Drive:', err);
+                throw err;
+            }
+        }
+
+        let isSyncing = false;
+        async function syncWithDrive() {
+            if (isSyncing || !driveNotesFile) return;
+            if (pendingSaveCount === 0) return;
+            
+            isSyncing = true;
+            try {
+                // Create a clean copy of notes for saving (remove local-only properties like isPending)
+                const notesToSave = {};
+                for (const [id, note] of Object.entries(currentNotes)) {
+                    const { isPending, ...noteData } = note;
+                    notesToSave[id] = noteData;
+                }
+                
+                await saveNotesToDrive(notesToSave);
+                
+                // Success: remove pending flag from notes that were part of this sync
+                for (const [id, note] of Object.entries(currentNotes)) {
+                    if (note.isPending) {
+                        delete note.isPending;
+                    }
+                }
+                pendingSaveCount = 0;
+                console.log('Background sync successful');
+            } catch (err) {
+                console.error('Background sync failed:', err);
+                // We'll keep the pending flags and count for retry
+            } finally {
+                isSyncing = false;
+                loadNotes(); // Refresh UI
+            }
+        }
+
+        // Save notes to Google Drive
+        async function saveNotesToDrive(notes) {
+            await ensureDriveInitialized();
+            try {
+                const data = { notes: notes };
+                
+                // Use gapi.client.request for reliable media upload update
+                await gapi.client.request({
+                    path: '/upload/drive/v3/files/' + driveNotesFile.id,
+                    method: 'PATCH',
+                    params: {
+                        uploadType: 'media'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                console.log('Successfully saved to Drive');
+            } catch (err) {
+                console.error('Error saving notes to Drive:', err);
+                throw err;
+            }
+        }
+
+        function showDialogNotWhitelisted(userId) {
+            // Whitelist no longer needed - removed for Drive version
+            return;
         }
         function closeNotWhitelistDialog() {
-            const modal = document.getElementById('not-whitelist-dialog');
-            if (modal) modal.style.display = 'none';
+            // Whitelist no longer needed - removed for Drive version
+            return;
         }
 
         function countChars(text) {
@@ -266,10 +560,34 @@
             }, 3000);
         }
 
-        function signInWithGoogle() {
+        function signInWithGoogle(forceRefresh = false) {
             auth.signInWithPopup(provider)
-                .then(() => {
+                .then(async (result) => {
                     showToast("Login successful");
+                    
+                    // Firebase 返回的 credential 包含 Google 的 access token
+                    // 但这个 token 可能不包含 Drive 权限
+                    if (result.credential && result.credential.accessToken) {
+                        console.log('Got access token from Firebase');
+                        driveAccessToken = result.credential.accessToken;
+                        sessionStorage.setItem('drive_token', driveAccessToken);
+                        
+                        // 确保 gapi.client 已加载
+                        await initGoogleApi();
+                        
+                        // 设置 gapi 的令牌
+                        if (gapi.client && gapi.client.setToken) {
+                            gapi.client.setToken({
+                                access_token: result.credential.accessToken
+                            });
+                            console.log('Set access token for gapi.client');
+                        }
+                    }
+                    
+                    if (forceRefresh) {
+                        // 重新初始化 Drive，现在应该有权限了
+                        initDriveNotes().then(() => loadNotes());
+                    }
                 })
                 .catch((error) => {
                     console.error("Error signing in:", error);
@@ -281,6 +599,10 @@
             auth.signOut()
                 .then(() => {
                     userPassword = null;
+                    driveNotesFile = null;
+                    driveAccessToken = null;
+                    driveInitPromise = null;
+                    sessionStorage.removeItem('drive_token');
                     showToast("Logout successful");
                 })
                 .catch((error) => {
@@ -332,12 +654,9 @@
                         .then(() => showToast('Copied successfully'))
                         .catch(() => showToast('Copy failed', 'error'));
                 };
-                // Check whitelist from Firebase
-                database.ref(`users/${user.uid}/whitelist`).once('value').then((snapshot) => {
-                    isWhitelisted = !!snapshot.val();
-                    if (!isWhitelisted) {
-                        showDialogNotWhitelisted(user.uid);
-                    }
+                
+                // Initialize Google Drive and load notes
+                initDriveNotes().then(() => {
                     loadNotes();
                 });
             } else {
@@ -400,28 +719,33 @@
             }
         }
 
-        function loadNotes() {
-            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
-            notesRef.on('value', (snapshot) => {
+        async function loadNotes() {
+            try {
+                if (Object.keys(currentNotes).length === 0 && !isSyncing) {
+                    await loadNotesFromDrive();
+                }
+
                 const noteList = document.getElementById('note-list');
                 noteList.innerHTML = '';
                 
-                // Convert snapshot to array and sort by timestamp (latest first)
+                // Convert notes object to array and sort by timestamp (latest first)
                 const notesArray = [];
-                snapshot.forEach((childSnapshot) => {
-                    const note = childSnapshot.val();
-                    const noteId = childSnapshot.key;
-                    const decryptedContent = decryptNote(note.content);
-                    
-                    // Only include successfully decrypted notes
-                    if (!decryptedContent.startsWith('[Decryption Failed]') && !decryptedContent.startsWith('[Encrypted]')) {
-                        notesArray.push({
-                            id: noteId,
-                            note: note,
-                            decryptedContent: decryptedContent
-                        });
+                for (const [noteId, note] of Object.entries(currentNotes)) {
+                    try {
+                        const decryptedContent = decryptNote(note.content);
+                        
+                        // Only include successfully decrypted notes
+                        if (!decryptedContent.startsWith('[Decryption Failed]') && !decryptedContent.startsWith('[Encrypted]')) {
+                            notesArray.push({
+                                id: noteId,
+                                note: note,
+                                decryptedContent: decryptedContent
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Error decrypting note:', err);
                     }
-                });
+                }
                 
                 // Sort by timestamp descending (latest first)
                 notesArray.sort((a, b) => {
@@ -433,15 +757,21 @@
                 // Create DOM elements for sorted notes
                 notesArray.forEach(({id, note, decryptedContent}) => {
                     const noteElement = document.createElement('div');
-                    noteElement.className = 'note-item';
+                    noteElement.className = 'note-item' + (note.isPending ? ' pending-sync' : '');
                     noteElement.onclick = () => openViewDialog(id, note.content);
                     
                     const noteContent = document.createElement('span');
-                    // Use plain text with clickable URLs for note list
                     const previewText = renderPreview(decryptedContent);
                     noteContent.textContent = previewText;
                     noteContent.className = 'note-content';
                     
+                    if (note.isPending) {
+                        const syncIcon = document.createElement('i');
+                        syncIcon.className = 'fas fa-sync fa-spin sync-indicator';
+                        syncIcon.title = 'Syncing...';
+                        noteElement.appendChild(syncIcon);
+                    }
+
                     const copyButton = document.createElement('button');
                     copyButton.className = 'icon-btn copy-btn';
                     copyButton.innerHTML = '<i class="fas fa-copy"></i>';
@@ -454,41 +784,48 @@
                     noteElement.appendChild(copyButton);
                     noteList.appendChild(noteElement);
                 });
-            }, (error) => {
-                console.error("Error loading notes:", error);
-                showToast("Failed to load notes: " + error.message, 'error');
-            });
+            } catch (err) {
+                console.error('Error loading notes:', err);
+                // Don't show toast for 401/403 as we handle that elsewhere
+                if (err.status !== 401 && err.status !== 403) {
+                    showToast('Failed to load notes', 'error');
+                }
+            }
         }
 
-        function openCreateDialog() {
+        async function openCreateDialog() {
             if (!userPassword) {
                 showPasswordReminder();
                 return;
             }
-            if (!isWhitelisted) {
-                showDialogNotWhitelisted(currentUserId);
-                return;
-            }
-            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
-            notesRef.once('value', (snapshot) => {
-                if (snapshot.numChildren() >= MAX_NOTES) {
-                    showToast(`Cannot create more than ${MAX_NOTES} notes`, 'error');
-                } else {
-                    const modal = document.getElementById('create-dialog');
-                    const textarea = document.getElementById('note-content');
-                    modal.style.display = 'flex';
-                    textarea.value = '';
-                    adjustTextareaHeight(textarea);
-                    textarea.focus();
+            
+            // If we don't have notes yet, try to load them first
+            if (Object.keys(currentNotes).length === 0 && !isSyncing) {
+                try {
+                    await loadNotesFromDrive();
+                } catch (e) {
+                    console.error('Failed to pre-load notes:', e);
                 }
-            });
+            }
+            
+            const noteCount = Object.keys(currentNotes).length;
+            if (noteCount >= MAX_NOTES) {
+                showToast(`Cannot create more than ${MAX_NOTES} notes`, 'error');
+            } else {
+                const modal = document.getElementById('create-dialog');
+                const textarea = document.getElementById('note-content');
+                modal.style.display = 'flex';
+                textarea.value = '';
+                adjustTextareaHeight(textarea);
+                textarea.focus();
+            }
         }
 
         function closeCreateDialog() {
             document.getElementById('create-dialog').style.display = 'none';
         }
 
-        function createNote() {
+        async function createNote() {
             const content = document.getElementById('note-content').value.trim();
             if (!content) {
                 showToast("Note content cannot be empty", 'error');
@@ -505,29 +842,27 @@
             }
             try {
                 const encryptedContent = encryptNote(content);
-                const newNote = {
+                const noteId = Date.now().toString();
+                
+                // 1. Update local cache immediately
+                currentNotes[noteId] = {
                     content: encryptedContent,
                     timestamp: new Date().toISOString(),
-                    userId: auth.currentUser.uid
+                    userId: auth.currentUser.uid,
+                    isPending: true // Flag for background sync indicator
                 };
-                const notesRef = database.ref(`users/${auth.currentUser.uid}/notes`);
-                notesRef.once('value', (snapshot) => {
-                    if (snapshot.numChildren() >= MAX_NOTES) {
-                        showToast(`Cannot create more than ${MAX_NOTES} notes`, 'error');
-                    } else {
-                        notesRef.push(newNote)
-                            .then(() => {
-                                showToast("Note created successfully");
-                                closeCreateDialog();
-                            })
-                            .catch(error => {
-                                console.error("Error creating note:", error);
-                                showToast("Failed to create note: " + error.message, 'error');
-                            });
-                    }
-                });
+                
+                // 2. Refresh UI immediately
+                loadNotes();
+                closeCreateDialog();
+                showToast("Note saving in background...");
+                
+                // 3. Trigger background sync
+                pendingSaveCount++;
+                syncWithDrive();
             } catch (e) {
-                showToast("Encryption failed: " + e.message, 'error');
+                console.error("Failed to create note:", e);
+                showToast("Creation failed: " + e.message, 'error');
             }
         }
 
@@ -559,6 +894,7 @@
             preview.style.display = 'block';
             previewBtn.className = 'fas fa-edit';
             button.title = languages[currentLanguage].editMode;
+            updateViewDialogButtons();
             modal.style.display = 'flex';
 
             // Set up copy button to copy current visible content
@@ -589,19 +925,25 @@
             confirmDialog.style.display = 'flex';
         }
 
-        function confirmDelete() {
+        async function confirmDelete() {
             if (!currentNoteId) return;
-            const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
-            notesRef.remove()
-                .then(() => {
-                    showToast("Note deleted successfully");
-                    closeConfirmDialog();
-                    closeViewDialog();
-                })
-                .catch(error => {
-                    console.error("Error deleting note:", error);
-                    showToast("Failed to delete note: " + error.message, 'error');
-                });
+            try {
+                // 1. Update local cache immediately
+                delete currentNotes[currentNoteId];
+                
+                // 2. Refresh UI immediately
+                loadNotes();
+                closeConfirmDialog();
+                closeViewDialog();
+                showToast("Note deleting in background...");
+                
+                // 3. Trigger background sync
+                pendingSaveCount++;
+                syncWithDrive();
+            } catch (e) {
+                console.error("Failed to delete note:", e);
+                showToast("Delete failed", 'error');
+            }
         }
 
         function closeConfirmDialog() {
@@ -635,7 +977,7 @@
             if (modal) modal.style.display = 'none';
         }
 
-        function saveNoteChanges() {
+        async function saveNoteChanges() {
             if (!currentNoteId || !userPassword) return;
             if (isPreviewMode) {
                 togglePreview();
@@ -652,21 +994,26 @@
             }
             try {
                 const encryptedContent = encryptNote(content);
-                const notesRef = database.ref(`users/${auth.currentUser.uid}/notes/${currentNoteId}`);
-                notesRef.update({
+                
+                // 1. Update local cache immediately
+                currentNotes[currentNoteId] = {
                     content: encryptedContent,
-                    timestamp: new Date().toISOString()
-                })
-                .then(() => {
-                    showToast("Note updated successfully");
-                    closeViewDialog();
-                })
-                .catch(error => {
-                    console.error("Error updating note:", error);
-                    showToast("Failed to update note: " + error.message, 'error');
-                });
+                    timestamp: new Date().toISOString(),
+                    userId: auth.currentUser.uid,
+                    isPending: true
+                };
+                
+                // 2. Refresh UI immediately
+                loadNotes();
+                closeViewDialog();
+                showToast("Update saving in background...");
+                
+                // 3. Trigger background sync
+                pendingSaveCount++;
+                syncWithDrive();
             } catch (e) {
-                showToast("Encryption failed: " + e.message, 'error');
+                console.error("Failed to update note:", e);
+                showToast("Update failed: " + e.message, 'error');
             }
         }
 
@@ -725,6 +1072,30 @@
                 button.title = languages[currentLanguage].editMode;
                 isPreviewMode = true;
             }
+            updateViewDialogButtons();
+        }
+
+        function updateViewDialogButtons() {
+            const saveBtn = document.getElementById('view-save-btn');
+            const deleteBtn = document.getElementById('view-delete-btn');
+            const editToggleBtn = document.getElementById('view-edit-toggle-btn');
+            const copyBtn = document.getElementById('view-copy-btn');
+            const closeBtn = document.getElementById('view-close-btn');
+
+            // Always show edit toggle, copy, close
+            editToggleBtn.style.display = 'inline-flex';
+            copyBtn.style.display = 'inline-flex';
+            closeBtn.style.display = 'inline-flex';
+
+            // Preview mode: Edit/Copy/Delete/Close
+            if (isPreviewMode) {
+                saveBtn.style.display = 'none';
+                deleteBtn.style.display = 'inline-flex';
+            } else {
+                // Edit mode: Preview/Copy/Save/Close
+                saveBtn.style.display = 'inline-flex';
+                deleteBtn.style.display = 'none';
+            }
         }
 
         // Update note list preview to use plain text
@@ -738,7 +1109,7 @@
         }
 
         function getOpenDialog() {
-            const dialogs = ['password-dialog', 'create-dialog', 'view-dialog'];
+            const dialogs = ['confirm-delete-dialog', 'view-dialog', 'create-dialog', 'password-dialog'];
             for (const dialogId of dialogs) {
                 const dialog = document.getElementById(dialogId);
                 if (dialog.style.display === 'flex') {
@@ -764,6 +1135,9 @@
                         break;
                     case 'view-dialog':
                         closeViewDialog();
+                        break;
+                    case 'confirm-delete-dialog':
+                        closeConfirmDialog();
                         break;
                 }
             } else if (event.key === 'Enter') {
