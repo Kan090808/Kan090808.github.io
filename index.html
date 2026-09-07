@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="desk">
+      <div class="mast">
+        <p class="local-badge" data-local-badge hidden></p>
+        <p class="local-warnings" data-local-warnings hidden></p>
+        <nav class="tabs" role="tablist" aria-label="主要分頁">
+          <button type="button" role="tab" id="tab-profile" aria-controls="panel" data-tab="profile">
+            個人資料
+          </button>
+          <button type="button" role="tab" id="tab-works" aria-controls="panel" data-tab="works" hidden>
+            作品
+          </button>
+          <button type="button" role="tab" id="tab-recs" aria-controls="panel" data-tab="recs">
+            推薦列表
+          </button>
+          <button type="button" role="tab" id="tab-posts" aria-controls="panel" data-tab="posts" hidden>
+            貼文
+          </button>
+        </nav>
+      </div>
+      <main id="panel" class="paper" role="tabpanel" aria-labelledby="tab-profile"></main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

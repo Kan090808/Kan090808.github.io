@@ -1,0 +1,28 @@
+{
+  "name": "Kan Jing Terng (Jayden)",
+  "tagline": "Senior iOS Engineer · 台灣台北／馬來西亞新山",
+  "avatar": "",
+  "bio": "具 6.6 年經驗的 Senior iOS Engineer，專長於 Swift 與 MVVM、Clean Architecture 等現代架構模式。具備將 legacy Objective-C 專案遷移至 Swift 與 Combine、改善應用程式穩定性與效能的實績。熟悉 AI 輔助開發、效能優化、自動化交付，以及跨平台 iOS／macOS 開發。\n\n## 核心能力\n\n原生 iOS 開發 · Swift 與 Objective-C 遷移 · SwiftUI、UIKit 與 Combine · MVVM 與 Clean Architecture · 測試與 XCTest · 效能與 Instruments · CI/CD 與 Fastlane · AI Service Integration\n\n## 工作經歷\n\n### Senior iOS Engineer · Letstalk\n2019 年 9 月至今 · 台北\n\n**iOS Engineering**\n- 主導 Letstalk 應用程式從舊版 Objective-C 遷移至 reactive Swift 與 Combine 架構，使 crash rate 降低 20%。\n- 導入 MVVM 解耦大型 view controller，降低程式碼複雜度並使檔案大小縮減 40%。\n- 以 SwiftUI 與 Combine 開發核心通訊功能，改善回應速度。\n- 從零建立測試文化，將 unit-test coverage 從 0% 提升至 60%。\n- 使用 Instruments、Leaks 與 Time Profiler 解決 memory leak，優化 main-thread responsiveness。\n- 以 Fastlane 建立自動化部署流程，每週減少數小時的手動發布工作。\n- 使用 Mac Catalyst 與 AppKit 開發及維護 macOS 應用程式，維持跨平台功能一致性。\n- 實作 menu bar extras、global hotkeys 與 file-system integration 等 macOS 專屬功能。\n- 抽離 iOS 與 macOS 共用核心模組，減少重複維護。\n\n**AI Development**\n- 使用 Amazon Bedrock 服務架設並優化 AI 客服回答系統。\n- 開發 AI 翻譯 API，根據不同模型調整並優化提示詞，實作專有名詞機制。\n- 設計 AI OCR 辨識流程，簡化提示詞，並針對不同失敗情況追查根本原因。\n\n## 學歷\n\n**資訊管理學士** · 國立暨南國際大學 · 2019 年 9 月\n\n## 技術技能\n\n- **語言：** Swift、Objective-C\n- **框架：** SwiftUI、UIKit、AppKit、Combine、Core Data、GCD\n- **架構：** MVVM、MVC、Clean Architecture、Modularization、Shared Core\n- **工具：** Xcode、Git、Firebase、Fastlane、CocoaPods、Swift Package Manager\n- **測試：** XCTest、UI Testing、Unit Testing\n- **AI：** Amazon Bedrock、Prompt Engineering、AI Translation APIs、AI OCR\n- **其他：** Instruments、App Store Connect、RESTful APIs、Mac Catalyst\n",
+  "links": [
+    {
+      "label": "+886 905-620-013",
+      "url": "tel:+886905620013"
+    },
+    {
+      "label": "+60 17-808-2298",
+      "url": "tel:+60178082298"
+    },
+    {
+      "label": "GitHub",
+      "url": "https://github.com/Kan090808"
+    },
+    {
+      "label": "LinkedIn",
+      "url": "https://www.linkedin.com/in/jing-terng-kan-7a15a0242"
+    },
+    {
+      "label": "Email",
+      "url": "mailto:kanjingterng@gmail.com"
+    }
+  ]
+}

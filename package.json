@@ -1,0 +1,20 @@
+{
+  "name": "kan090808-github-io",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/assert-no-cms-in-dist.mjs",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "happy-dom": "^20.14.0",
+    "marked": "^18.0.11",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  }
+}

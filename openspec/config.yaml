@@ -1,0 +1,21 @@
+schema: spec-driven
+
+context: |
+  Personal static site for GitHub Pages (username.github.io).
+  Language: Traditional Chinese UI and content.
+  Stack (this change): Vite + TypeScript + vanilla HTML/CSS, no React.
+  Hosting: GitHub Pages via GitHub Actions from `main`.
+  Content lives in-repo under `content/` and is baked into the static build.
+  Editing exists only in local `vite` dev: production has no editor UI and no write API.
+  Three public tabs: 個人資料, 推薦列表, 貼文.
+  Recommendation seed categories: 開發工具, 動漫.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
